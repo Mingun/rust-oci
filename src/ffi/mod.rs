@@ -7,6 +7,9 @@ use super::Result;
 mod types;
 mod stmt;
 
+pub use self::types::{CreateMode, AttachMode, MallocFn, ReallocFn, FreeFn};
+pub use self::stmt::*;
+
 trait HandleType {
   const ID: types::Handle;
 }
