@@ -1,0 +1,6 @@
+[package]
+name = "oci"
+version = "0.1.0"
+authors = ["Mingun"]
+
+[dependencies]
