@@ -3,6 +3,7 @@ use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 use super::Error;
 use super::Result;
+use super::ConnectParams;
 
 mod types;
 mod stmt;
@@ -359,6 +360,10 @@ impl Environment {
 
     Ok(Environment { env: env, error: err })
   }
+  pub fn connect<P: Into<ConnectParams>>(&self, params: P) -> Result<Connection> {
+    let p = params.into();
+    Connection::new(&self, &p.dblink, p.mode, &p.username, &p.password)
+  }
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.handle()
   }
@@ -401,13 +406,17 @@ impl<'env> Drop for Server<'env> {
   }
 }
 //-------------------------------------------------------------------------------------------------
+/// Представляет соединение к базе данных, с определенным пользователем и паролем.
+/// Соединение зависит от окружения, создавшего его, таким образом, окружение является менеджером
+/// соединений. При уничтожении окружения все соединения закрываются, а незакоммиченные транзакции
+/// в них откатываются.
 pub struct Connection<'env> {
   server: Server<'env>,
   context: Handle<OCISvcCtx>,
   session: Handle<OCISession>,
 }
 impl<'env> Connection<'env> {
-  pub fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode, username: &str, password: &str) -> Result<Connection<'e>> {
+  fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode, username: &str, password: &str) -> Result<Connection<'e>> {
     let server = try!(Server::new(env, dblink, mode));
     let mut context: Handle<OCISvcCtx > = try!(env.handle());
     let mut session: Handle<OCISession> = try!(env.handle());
