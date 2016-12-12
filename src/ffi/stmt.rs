@@ -73,6 +73,6 @@ pub struct Statement<'conn> {
 }
 impl<'conn> Drop for Statement<'conn> {
   fn drop(&mut self) {
-    unsafe { OCIStmtRelease(self.handle.native, 0 as *mut OCIError, 0 as *const c_uchar, 0, 0); }
+    unsafe { OCIStmtRelease(self.handle.native, self.conn.server.env.error.native, 0 as *const c_uchar, 0, 0); }
   }
 }

@@ -288,20 +288,29 @@ impl<T: HandleType> Handle<T> {
       e => Err(Error(e))
     };
   }
-  fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: c_uint, errhp: *mut OCIError) -> Result<()> {
+  fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: types::Attr, errhp: &Handle<OCIError>) -> Result<()> {
     let res = unsafe {
       OCIAttrSet(
         self.native as *mut c_void, T::ID as c_uint,
-        value, size, attrtype,
-        errhp
+        value, size, attrtype as c_uint,
+        errhp.native
       )
     };
     return check((), res);
   }
+  /// Устанавливает строковый атрибут хендлу
+  fn set_str(&mut self, value: &str, attrtype: types::Attr, errhp: &Handle<OCIError>) -> Result<()> {
+    self.set(value.as_ptr() as *mut c_void, value.len() as c_uint, attrtype, errhp)
+  }
+  /// Устанавливает хендл-атрибут хендлу
+  fn set_handle<U: HandleType>(&mut self, value: &Handle<U>, attrtype: types::Attr, errhp: &Handle<OCIError>) -> Result<()> {
+    self.set(value.native as *mut c_void, 0, attrtype, errhp)
+  }
 }
 impl<T: HandleType> Drop for Handle<T> {
   fn drop(&mut self) {
-    unsafe { OCIHandleFree(self.native as *mut c_void, T::ID as c_uint) };
+    let res = unsafe { OCIHandleFree(self.native as *mut c_void, T::ID as c_uint) };
+    check((), res).expect("OCIHandleFree");
   }
 }
 //-------------------------------------------------------------------------------------------------
@@ -334,7 +343,8 @@ impl Env {
 }
 impl Drop for Env {
   fn drop(&mut self) {
-    unsafe { OCITerminate(self.mode as c_uint) };
+    let res = unsafe { OCITerminate(self.mode as c_uint) };
+    check((), res).expect("OCITerminate");
   }
 }
 //-------------------------------------------------------------------------------------------------
@@ -357,6 +367,7 @@ impl Drop for Environment {
   fn drop(&mut self) {}
 }
 //-------------------------------------------------------------------------------------------------
+/// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
 struct Server<'env> {
   env: &'env Environment,
   handle: Handle<OCIServer>,
@@ -380,27 +391,59 @@ impl<'env> Server<'env> {
 }
 impl<'env> Drop for Server<'env> {
   fn drop(&mut self) {
-    unsafe {
+    let res = unsafe {
       OCIServerDetach(
         self.handle.native, self.env.error.native,
         self.mode as c_uint
       )
     };
+    check((), res).expect("OCIServerDetach");
   }
 }
 //-------------------------------------------------------------------------------------------------
 pub struct Connection<'env> {
-  env: &'env Environment,
   server: Server<'env>,
   context: Handle<OCISvcCtx>,
   session: Handle<OCISession>,
 }
 impl<'env> Connection<'env> {
-  pub fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode) -> Result<Connection<'e>> {
+  pub fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode, username: &str, password: &str) -> Result<Connection<'e>> {
     let server = try!(Server::new(env, dblink, mode));
-    let context: Handle<OCISvcCtx > = try!(env.handle());
-    let session: Handle<OCISession> = try!(env.handle());
+    let mut context: Handle<OCISvcCtx > = try!(env.handle());
+    let mut session: Handle<OCISession> = try!(env.handle());
 
-    Ok(Connection { env: env, server: server, context: context, session: session })
+    // Ассоциируем имя пользователя и пароль с сессией
+    try!(session.set_str(username, types::Attr::Username, &env.error));
+    try!(session.set_str(password, types::Attr::Password, &env.error));
+
+    // Ассоциируем сервер с контекстом и осуществляем подключение
+    try!(context.set_handle(&server.handle, types::Attr::Server, &env.error));
+    let res = unsafe {
+      OCISessionBegin(
+        context.native,
+        env.error.native,
+        session.native,
+        // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
+        // базы данных
+        types::CredentialMode::Rdbms as c_uint,
+        types::AuthMode::Default as c_uint
+      )
+    };
+    try!(check((), res));
+
+    Ok(Connection { server: server, context: context, session: session })
+  }
+}
+impl<'env> Drop for Connection<'env> {
+  fn drop(&mut self) {
+    let res = unsafe {
+      OCISessionEnd(
+        self.context.native,
+        self.server.env.error.native,
+        self.session.native,
+        types::AuthMode::Default as c_uint
+      )
+    };
+    check((), res).expect("OCISessionEnd");
   }
 }

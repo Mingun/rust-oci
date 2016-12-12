@@ -1,5 +1,6 @@
 #![feature(associated_consts)]
 
+#[derive(Debug)]
 pub struct Error(std::os::raw::c_int);
 type Result<T> = std::result::Result<T, Error>;
 

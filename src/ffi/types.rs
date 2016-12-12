@@ -59,6 +59,50 @@ pub enum AttachMode {
   /// Use connection pooling.
   CPool,
 }
+/// Specifies the various modes of operation
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum AuthMode {
+  /// In this mode, the user session context returned can only ever be set with the server context
+  /// specified in `svchp`. For encoding, the server handle uses the setting in the environment handle.
+  Default = 0,
+  /// In this mode, the new user session context can be set in a service handle with a different server handle.
+  /// This mode establishes the user session context. To create a migratable session, the service handle must already
+  /// be set with a nonmigratable user session, which becomes the "creator" session of the migratable session. That is,
+  /// a migratable session must have a nonmigratable parent session.
+  ///
+  /// `Migrate` should not be used when the session uses connection pool underneath. The session migration and multiplexing
+  /// happens transparently to the user.
+  Migrate     = 1 << 0,
+  /// In this mode, you are authenticated for `SYSDBA` access
+  SysDba      = 1 << 1,
+  /// In this mode, you are authenticated for `SYSOPER` access
+  SysOper     = 1 << 2,
+  /// This mode can only be used with `SysDba` or `SysOper` to authenticate for certain administration tasks
+  PrelimAuth  = 1 << 3,
+  //PICache     = 1 << 4,
+  /// Enables statement caching with default size on the given service handle. It is optional to pass this mode
+  /// if the application is going to explicitly set the size later using `OCI_ATTR_STMTCACHESIZE` on that service handle.
+  StmtCache   = 1 << 6,
+  //StatelessCall = 1 << 7,
+  //StatelessTxn  = 1 << 8,
+  //StatelessApp  = 1 << 9,
+  //SysAsm      = 1 << 14,
+  //SysBkp      = 1 << 16,
+  //SysDgd      = 1 << 17,
+  //SysKmt      = 1 << 18,
+}
+/// Specifies the type of credentials to use for establishing the user session
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum CredentialMode {
+  /// Authenticate using a database user name and password pair as credentials.
+  /// The attributes `OCI_ATTR_USERNAME` and `OCI_ATTR_PASSWORD` should be set on the user session context before this call.
+  Rdbms = 1 << 0,
+  /// Authenticate using external credentials. No user name or password is provided.
+  Ext   = 1 << 2,
+  //Proxy = 1 << 3,
+}
 /// Виды хендлов, которые можно выделять функцией `alloc_handle`.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
@@ -135,4 +179,12 @@ pub enum Handle {
   /// OCIAdmin
   Admin = 28,
   //Event = 29,
+}
+/// Виды атрибутов, которые можно назначать хендлам
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum Attr {
+  Server = 6,
+  Username = 22,
+  Password = 23,
 }
