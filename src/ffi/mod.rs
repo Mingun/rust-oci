@@ -23,38 +23,48 @@ enum OCISession {}  impl HandleType for OCISession { const ID: types::Handle = t
 #[link(name = "oci")]
 #[allow(dead_code)]
 extern "C" {
-  /// OCI ENVironment CREATE with NLS info
+  /// OCI ENVironment CREATE with NLS info.
   ///
-  /// # Purpose
-  /// This function does almost everything OCIEnvCreate does, plus enabling setting
-  /// of charset and ncharset programmatically, except OCI_UTF16 mode.
+  /// This function does almost everything `OCIEnvCreate` does, plus enabling setting
+  /// of charset and ncharset programmatically, except `OCI_UTF16` mode.
   ///
   /// # Comments
   /// The charset and ncharset must be both zero or non-zero.
-  /// The parameters have the same meaning as the ones in OCIEnvCreate().
+  /// The parameters have the same meaning as the ones in `OCIEnvCreate()`.
   /// When charset or ncharset is non-zero, the corresponding character set will
-  /// be used to replace the ones specified in NLS_LANG or NLS_NCHAR. Moreover,
-  /// OCI_UTF16ID is allowed to be set as charset and ncharset.
-  /// On the other hand, OCI_UTF16 mode is deprecated with this function. 
+  /// be used to replace the ones specified in `NLS_LANG` or `NLS_NCHAR`. Moreover,
+  /// `OCI_UTF16ID` is allowed to be set as charset and ncharset.
+  /// On the other hand, `OCI_UTF16` mode is deprecated with this function. 
   /// Applications can achieve the same effects by setting 
-  /// both charset and ncharset as OCI_UTF16ID.
+  /// both charset and ncharset as `OCI_UTF16ID`.
   ///
-  /// @param envhpp A pointer to an environment handle whose encoding setting is specified by mode.
-  ///               The setting is inherited by statement handles derived from envhpp.
-  /// @param mode Specifies initialization of the mode.
-  /// @param ctxp Specifies the user-defined context for the memory callback routines.
-  /// @param malocfp Specifies the user-defined memory allocation function. If mode is `OCI_THREADED`, this
-  ///                memory allocation routine must be thread-safe.
-  /// @param ralocfp Specifies the user-defined memory reallocation function. If the mode is `OCI_THREADED`,
-  ///                this memory allocation routine must be thread-safe.
-  /// @param mfreefp Specifies the user-defined memory free function. If the mode is `OCI_THREADED`,
-  ///                this memory free routine must be thread-safe.
-  /// @param xtramemsz Specifies the amount of user memory to be allocated for the duration of the environment.
-  /// @param usrmempp Returns a pointer to the user memory of size `xtramemsz` allocated by the call for the user.
-  /// @param charset The client-side character set for the current environment handle. If it is 0, the `NLS_LANG`
-  ///                setting is used. `OCI_UTF16ID` is a valid setting; it is used by the metadata and the `CHAR` data.
-  /// @param ncharset The client-side national character set for the current environment handle. If it is `0`,
-  ///                 `NLS_NCHAR` setting is used. `OCI_UTF16ID` is a valid setting; it is used by the `NCHAR` data.
+  /// # Parameters
+  /// - envhpp:
+  ///   A pointer to an environment handle whose encoding setting is specified by mode.
+  ///   The setting is inherited by statement handles derived from `envhpp`.
+  /// - mode:
+  ///   Specifies initialization of the mode.
+  /// - ctxp:
+  ///   Specifies the user-defined context for the memory callback routines.
+  /// - malocfp:
+  ///   Specifies the user-defined memory allocation function. If mode is `OCI_THREADED`, this
+  ///   memory allocation routine must be thread-safe.
+  /// - ralocfp:
+  ///   Specifies the user-defined memory reallocation function. If the mode is `OCI_THREADED`,
+  ///   this memory allocation routine must be thread-safe.
+  /// - mfreefp:
+  ///   Specifies the user-defined memory free function. If the mode is `OCI_THREADED`,
+  ///   this memory free routine must be thread-safe.
+  /// - xtramemsz:
+  ///   Specifies the amount of user memory to be allocated for the duration of the environment.
+  /// - usrmempp:
+  ///   Returns a pointer to the user memory of size `xtramemsz` allocated by the call for the user.
+  /// - charset:
+  ///   The client-side character set for the current environment handle. If it is 0, the `NLS_LANG`
+  ///   setting is used. `OCI_UTF16ID` is a valid setting; it is used by the metadata and the `CHAR` data.
+  /// - ncharset:
+  ///   The client-side national character set for the current environment handle. If it is `0`,
+  ///   `NLS_NCHAR` setting is used. `OCI_UTF16ID` is a valid setting; it is used by the `NCHAR` data.
   fn OCIEnvNlsCreate(envhpp: *mut *mut OCIEnv, // результат
                      mode: c_uint,
                      ctxp: *mut c_void,
