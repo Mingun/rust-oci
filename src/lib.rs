@@ -1,4 +1,5 @@
 #![feature(associated_consts)]
+#![allow(non_snake_case)]
 
 mod ffi;
 pub use ffi::*;
