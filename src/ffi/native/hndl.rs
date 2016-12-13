@@ -5,7 +5,9 @@
 use std::os::raw::{c_int, c_void, c_uint};
 use super::OCIError;
 
-#[link(name = "oci")]
+// По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
+#[cfg_attr(windows, link(name = "oci"))]
+#[cfg_attr(not(windows), link(name = "clntsh"))]
 extern "C" {
   /// Returns a pointer to an allocated and initialized handle.
   ///

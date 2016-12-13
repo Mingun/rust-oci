@@ -7,7 +7,9 @@ use std::os::raw::{c_int, c_uchar, c_uint, c_ushort, c_void};
 use super::{OCIError, OCISvcCtx, OCISnapshot, OCIStmt};
 
 
-#[link(name = "oci")]
+// По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
+#[cfg_attr(windows, link(name = "oci"))]
+#[cfg_attr(not(windows), link(name = "clntsh"))]
 extern "C" {
   /// Associates an application request with a server.
   pub fn OCIStmtExecute(svchp: *mut OCISvcCtx,
