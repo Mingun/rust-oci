@@ -261,6 +261,15 @@ extern "C" {
                 size: c_uint,
                 attrtype: c_uint,
                 errhp: *mut OCIError) -> c_int;
+
+  /// Returns an error message in the buffer provided and an Oracle Database error code.
+  fn OCIErrorGet(hndlp: *mut c_void,
+                 recordno: c_uint,
+                 sqlstate: *mut c_uchar,// устарел с версии 8.x
+                 errcodep: *mut c_int,  // возвращаемый код ошибки
+                 bufp: *mut c_uchar,    // возвращаемое сообщение об ошибке
+                 bufsiz: c_uint,
+                 htype: c_uint) -> c_int;
 }
 //-------------------------------------------------------------------------------------------------
 fn check<T>(result: T, native: c_int) -> Result<T> {
@@ -367,6 +376,9 @@ impl Environment {
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.handle()
   }
+  fn errorHandle(&self) -> *mut OCIError {
+    self.error.native
+  }
 }
 impl Drop for Environment {
   fn drop(&mut self) {}
@@ -393,12 +405,15 @@ impl<'env> Server<'env> {
       e => Err(Error(e))
     };
   }
+  fn errorHandle(&self) -> *mut OCIError {
+    self.env.errorHandle()
+  }
 }
 impl<'env> Drop for Server<'env> {
   fn drop(&mut self) {
     let res = unsafe {
       OCIServerDetach(
-        self.handle.native, self.env.error.native,
+        self.handle.native, self.errorHandle(),
         self.mode as c_uint
       )
     };
@@ -442,13 +457,16 @@ impl<'env> Connection<'env> {
 
     Ok(Connection { server: server, context: context, session: session })
   }
+  fn errorHandle(&self) -> *mut OCIError {
+    self.server.errorHandle()
+  }
 }
 impl<'env> Drop for Connection<'env> {
   fn drop(&mut self) {
     let res = unsafe {
       OCISessionEnd(
         self.context.native,
-        self.server.env.error.native,
+        self.errorHandle(),
         self.session.native,
         types::AuthMode::Default as c_uint
       )
