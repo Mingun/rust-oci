@@ -6,25 +6,10 @@ use super::Result;
 use super::ConnectParams;
 
 mod types;
-mod base;
-mod stmt;
-
-use self::base::*;
-use self::stmt::*;
+mod native;
 
 pub use self::types::{CreateMode, AttachMode, MallocFn, ReallocFn, FreeFn};
-
-trait HandleType {
-  const ID: types::Handle;
-}
-
-enum OCIEnv {}
-enum OCIError {}    impl HandleType for OCIError   { const ID: types::Handle = types::Handle::Error; }
-enum OCIServer {}   impl HandleType for OCIServer  { const ID: types::Handle = types::Handle::Server; }
-enum OCISvcCtx {}   impl HandleType for OCISvcCtx  { const ID: types::Handle = types::Handle::SvcCtx; }
-enum OCISession {}  impl HandleType for OCISession { const ID: types::Handle = types::Handle::Session; }
-enum OCIStmt {}     impl HandleType for OCIStmt    { const ID: types::Handle = types::Handle::Stmt; }
-enum OCISnapshot {}
+use self::native::*;
 
 //-------------------------------------------------------------------------------------------------
 fn check(native: c_int) -> Result<()> {
