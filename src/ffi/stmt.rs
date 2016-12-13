@@ -1,7 +1,9 @@
 
 use std::os::raw::{c_int, c_uchar, c_uint, c_ushort, c_void};
-use super::{OCISvcCtx, OCIError, Handle, HandleType, Connection};
+use super::{OCISvcCtx, OCIError, Handle, HandleType, Connection, check};
 use super::types;
+use ::Error;
+use ::Result;
 
 enum OCIStmt {}     impl HandleType for OCIStmt { const ID: types::Handle = types::Handle::Stmt; }
 enum OCISnapshot {}
@@ -67,12 +69,45 @@ extern "C" {
                          rcodep: *mut c_ushort) -> c_int;
 }
 
-pub struct Statement<'conn> {
-  conn: Connection<'conn>,
+pub struct Statement<'conn, 'key> {
+  /// Соединение, которое подготовило данное выражение
+  conn: &'conn Connection<'conn>,
+  /// Внутренний указатель оракла на подготовленное выражение
   handle: Handle<OCIStmt>,
+  /// Ключ для кеширования выражения
+  key: Option<&'key str>,
 }
-impl<'conn> Drop for Statement<'conn> {
+impl<'conn, 'key> Statement<'conn, 'key> {
+  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: types::Syntax) -> Result<Statement<'c, 'k>> {
+    let mut stmt: Handle<OCIStmt> = try!(conn.server.env.handle());
+    let keyPtr = key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
+    let keyLen = key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
+    let res = unsafe {
+      OCIStmtPrepare2(
+        conn.context.native,
+        &mut stmt.native,
+        conn.errorHandle(),
+        // Текст SQL запроса
+        sql.as_ptr() as *const c_uchar, sql.len() as c_uint,
+        // Ключ кеширования, по которому достанется запрос, если он был закеширован
+        keyPtr, keyLen,
+        syntax as c_uint, types::CachingMode::Default as c_uint
+      )
+    };
+    return match res {
+      0 => Ok(Statement { conn: conn, handle: stmt, key: key }),
+      e => Err(Error(e)),
+    };
+  }
+  fn errorHandle(&self) -> *mut OCIError {
+    self.conn.errorHandle()
+  }
+}
+impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
-    unsafe { OCIStmtRelease(self.handle.native, self.conn.server.env.error.native, 0 as *const c_uchar, 0, 0); }
+    let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
+    let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
+    let res = unsafe { OCIStmtRelease(self.handle.native, self.errorHandle(), keyPtr, keyLen, 0) };
+    check((), res).expect("OCIStmtRelease");
   }
 }

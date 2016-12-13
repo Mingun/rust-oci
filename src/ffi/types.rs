@@ -1,4 +1,5 @@
 
+use std;
 use std::os::raw::c_void;
 
 pub type MallocFn  = extern "C" fn(ctxp: *mut c_void, size: usize) -> *mut c_void;
@@ -187,4 +188,43 @@ pub enum Attr {
   Server = 6,
   Username = 22,
   Password = 23,
+}
+/// Диалект, используемый для разбора SQL-кода запросов
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum Syntax {
+  /// Syntax depends upon the version of the server.
+  Native = 1,
+  /// V7 ORACLE parsing syntax.
+  V7 = 2,
+  //V8 = 3,
+  /// Specifies the statement to be translated according to the SQL translation profile set in the session.
+  Foreign = std::u32::MAX as isize,
+}
+/// Режим кеширования подготавливаемых запросов к базе данных
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum CachingMode {
+  /// Caching is not enabled. This is the only valid setting. If the statement is not found in the cache, this mode
+  /// allocates a new statement handle and prepares the statement handle for execution. If the statement is not found
+  /// in the cache and one of the following circumstances applies, then the subsequent actions follow:
+  /// - Only the text has been supplied: a new statement is allocated and prepared and returned. The tag `NULL`.
+  ///   `OCI_SUCCESS` is returned.
+  /// - Only the tag has been supplied: stmthp is `NULL`. `OCI_ERROR` is returned.
+  /// - Both text and key were supplied: a new statement is allocated and prepared and returned. The tag `NULL`.
+  ///   `OCI_SUCCESS_WITH_INFO` is returned, as the returned statement differs from the requested statement in that
+  ///   the tag is `NULL`.
+  Default = 0,
+  /// In this case, if the statement is not found (a `NULL` statement handle is returned), you must take further
+  /// action. If the statement is found, `OCI_SUCCESS` is returned. Otherwise, `OCI_ERROR` is returned.
+  CacheSearchOnly   = 0x0010,
+  /// If warnings are enabled in the session and the `PL/SQL` program is compiled with warnings, then
+  /// `OCI_SUCCESS_WITH_INFO` is the return status from the execution. Use `OCIErrorGet()` to find the new error
+  /// number corresponding to the warnings.
+  GetPLSQLWarnings  = 0x0020,
+  /// The mode should be passed as `OCI_PREP2_IMPL_RESULTS_CLIENT` when this call is made in an external procedure
+  /// and implicit results need to be processed. See ["OCI Support for Implicit Results"][1] for more details.
+  ///
+  /// [1]: http://docs.oracle.com/database/121/LNOCI/oci10new.htm#CEGJCAJI
+  ImplResultsCLient = 0x0400,
 }
