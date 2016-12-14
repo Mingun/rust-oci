@@ -64,6 +64,33 @@ impl<T: HandleType> Drop for Handle<T> {
   }
 }
 //-------------------------------------------------------------------------------------------------
+/// Автоматически освобождаемый дескриптор ресурсов оракла
+struct Descriptor<T: DescriptorType> {
+  native: *mut T,
+}
+impl<T: DescriptorType> Descriptor<T> {
+  fn new(env: *const OCIEnv) -> Result<Descriptor<T>> {
+    let mut desc = ptr::null_mut();
+    let res = unsafe {
+      OCIDescriptorAlloc(
+        env as *const c_void,
+        &mut desc, T::ID as c_uint,
+        0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделеное под них место
+      )
+    };
+    return match res {
+      0 => Ok(Descriptor { native: desc as *mut T }),
+      e => Err(Error(e))
+    };
+  }
+}
+impl<T: DescriptorType> Drop for Descriptor<T> {
+  fn drop(&mut self) {
+    let res = unsafe { OCIDescriptorFree(self.native as *mut c_void, T::ID as c_uint) };
+    check(res).expect("OCIDescriptorFree");
+  }
+}
+//-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 struct Env {
   native: *mut OCIEnv,
@@ -90,6 +117,9 @@ impl Env {
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     Handle::new(self.native)
   }
+  fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+    Descriptor::new(self.native)
+  }
 }
 impl Drop for Env {
   fn drop(&mut self) {
@@ -115,6 +145,9 @@ impl Environment {
   }
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.handle()
+  }
+  fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+    self.env.descriptor()
   }
   fn errorHandle(&self) -> *mut OCIError {
     self.error.native

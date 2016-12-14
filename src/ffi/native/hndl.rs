@@ -50,6 +50,45 @@ extern "C" {
   pub fn OCIHandleFree(hndlp: *mut c_void,
                        htype: c_uint) -> c_int;
 
+  /// Allocates storage to hold descriptors or LOB locators.
+  ///
+  /// # Comments
+  /// Returns a pointer to an allocated and initialized descriptor, corresponding to the type specified
+  /// in `dtype`. A non-`NULL` descriptor or LOB locator is returned on success. No diagnostics are
+  /// available on error.
+  ///
+  /// This call returns `OCI_SUCCESS` if successful, or `OCI_INVALID_HANDLE` if an out-of-memory error occurs.
+  ///
+  /// # Parameters
+  /// - parenth:
+  ///   An environment handle.
+  /// - descpp:
+  ///   Returns a descriptor or LOB locator of the desired type.
+  /// - dtype:
+  ///   Specifies the type of descriptor or LOB locator to be allocated.
+  pub fn OCIDescriptorAlloc(parenth: *const c_void,
+                            descpp: *mut *mut c_void, 
+                            dtype: c_uint,
+                            xtramem_sz: c_uint,
+                            usrmempp: *mut *mut c_void) -> c_int;
+  /// Deallocates a previously allocated descriptor.
+  ///
+  /// # Comments
+  /// This call frees storage associated with a descriptor. Returns `OCI_SUCCESS` or `OCI_INVALID_HANDLE`.
+  /// All descriptors can be explicitly deallocated; however, OCI deallocates a descriptor if the environment
+  /// handle is deallocated.
+  ///
+  /// If you perform LOB operations, you must always call `OCILobFreeTemporary()` before calling `OCIDescriptorFree()`
+  /// to free the contents of the temporary LOB. See About Freeing Temporary LOBs for more information.
+  ///
+  /// # Parameters
+  /// - descp:
+  ///   An allocated descriptor.
+  /// - type:
+  ///   Specifies the type of storage to be freed.
+  pub fn OCIDescriptorFree(descp: *mut c_void,
+                           dtype: c_uint) -> c_int;
+
   /// Returns a descriptor of a parameter specified by position in the describe handle or statement handle.
   ///
   /// # Comments

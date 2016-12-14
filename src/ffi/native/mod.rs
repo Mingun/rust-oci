@@ -1,9 +1,11 @@
+//! Модуль, содержащий код для связывания с C интерфейсов OCI.
 
 mod conn;
 mod hndl;
 mod stmt;
 
 use super::types::Handle;
+use super::types::Descriptor;
 pub use self::conn::*;
 pub use self::hndl::*;
 pub use self::stmt::*;
@@ -18,4 +20,9 @@ pub enum OCIServer {}   impl HandleType for OCIServer  { const ID: Handle = Hand
 pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx  { const ID: Handle = Handle::SvcCtx; }
 pub enum OCISession {}  impl HandleType for OCISession { const ID: Handle = Handle::Session; }
 pub enum OCIStmt {}     impl HandleType for OCIStmt    { const ID: Handle = Handle::Stmt; }
-pub enum OCISnapshot {}
+
+pub trait DescriptorType {
+  const ID: Descriptor;
+}
+pub enum OCILobLocator {} impl DescriptorType for OCILobLocator { const ID: Descriptor = Descriptor::Lob; }
+pub enum OCISnapshot {}   impl DescriptorType for OCISnapshot   { const ID: Descriptor = Descriptor::Snapshot; }

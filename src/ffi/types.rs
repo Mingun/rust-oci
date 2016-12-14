@@ -104,7 +104,7 @@ pub enum CredentialMode {
   Ext   = 1 << 2,
   //Proxy = 1 << 3,
 }
-/// Виды хендлов, которые можно выделять функцией `alloc_handle`.
+/// Виды хендлов, которые можно выделять функцией `OCIHandleAlloc`.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub enum Handle {
@@ -137,7 +137,7 @@ pub enum Handle {
   Session = 9,
   /// OCI authentication information handle
   /// OCIAuthInfo
-  //AuthInfo = 9,// нельзя иметь 2 элемента с одинаковым значыением
+  //AuthInfo = 9,// нельзя иметь 2 элемента с одинаковым значением
   /// OCI transaction handle
   /// OCITrans
   Trans = 10,
@@ -180,6 +180,66 @@ pub enum Handle {
   /// OCIAdmin
   Admin = 28,
   //Event = 29,
+}
+
+/// Виды дескрипторов, которые можно создать фунцией `OCIDescriptorAlloc`
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum Descriptor {
+  /// Specifies generation of a LOB value type locator (for a `BLOB` or `CLOB`) of C type `OCILobLocator`.
+  Lob = 50,
+  /// Specifies generation of snapshot descriptor of C type `OCISnapshot`
+  Snapshot = 51,
+  //ResultSet = 52,
+  /// Specifies generation of a read-only parameter descriptor of C type `OCIParam`.
+  Param = 53,
+  /// Specifies generation of a `ROWID` descriptor of C type `OCIRowid`.
+  RowID = 54,
+  /// Specifies generation of a complex object retrieval descriptor of C type `OCIComplexObjectComp`.
+  ComplexObjectComp = 55,
+  /// Specifies generation of a `FILE` value type locator of C type `OCILobLocator`.
+  File = 56,
+  /// Specifies generation of an Advanced Queuing enqueue options descriptor of C type `OCIAQEnqOptions`.
+  AQEnqOptions = 57,
+  /// Specifies generation of an Advanced Queuing dequeue options descriptor of C type `OCIAQDeqOptions`.
+  AQDeqOptions = 58,
+  /// Specifies generation of an Advanced Queuing message properties descriptor of C type `OCIAQMsgProperties`.
+  AQMsgProperties = 59,
+  /// Specifies generation of an Advanced Queuing agent descriptor of C type `OCIAQAgent`.
+  AQAgent = 60,
+  //Locator = 61,
+  /// Specifies generation of an `INTERVAL YEAR TO MONTH` descriptor of C type `OCIInterval`.
+  IntervalYM = 62,
+  /// Specifies generation of an `INTERVAL DAY TO SECOND` descriptor of C type `OCIInterval`.
+  IntervalDS = 63,
+  /// Specifies generation of an Advanced Queuing notification descriptor of C type `OCIAQNotify`.
+  AQNotify = 64,
+  /// Specifies generation of an ANSI DATE descriptor of C type `OCIDateTime`.
+  Date = 65,
+  //Time = 66,
+  //TimeWithTZ = 67,
+  /// Specifies generation of a TIMESTAMP descriptor of C type `OCIDateTime`.
+  Timestamp = 68,
+  /// Specifies generation of a `TIMESTAMP WITH TIME ZONE` descriptor of C type `OCIDateTime`.
+  TimestampWithTZ = 69,
+  /// Specifies generation of a `TIMESTAMP WITH LOCAL TIME ZONE` descriptor of C type `OCIDateTime`.
+  TimestampWithLTZ = 70,
+  /// Specifies generation of a user callback descriptor of C type `OCIUcb`.
+  UCB           = 71,
+  /// Specifies generation of a Distinguished Names descriptor of C type `OCIServerDNs`.
+  ServerDN      = 72,
+  //Signature     = 73,
+  /// Specifies generation of an Advanced Queuing listen descriptor of C type `OCIAQListenOpts`.
+  AQListenOptions = 75,
+  /// Specifies generation of an Advanced Queuing message properties descriptor of C type `OCIAQLisMsgProps`.
+  AQListenMsgProperties = 76,
+  //Change         = 77,
+  //TableChange    = 78,
+  //RowChange      = 79,
+  //QueryChange    = 80,
+  //LobRegion      = 81,
+  /// Specifies generation of the shard key or the shard group key of C type `OCIShardingKey`.
+  //ShardingKey // почему-то есть в доке, отсутствует в заголовочных файлах
 }
 /// Виды атрибутов, которые можно назначать хендлам
 #[derive(Clone, Copy, Debug)]
