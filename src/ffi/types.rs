@@ -6,6 +6,21 @@ pub type MallocFn  = extern "C" fn(ctxp: *mut c_void, size: usize) -> *mut c_voi
 pub type ReallocFn = extern "C" fn(ctxp: *mut c_void, memptr: *mut c_void, newsize: usize) -> *mut c_void;
 pub type FreeFn    = extern "C" fn(ctxp: *mut c_void, memptr: *mut c_void);
 
+pub type OCICallbackLobArrayRead  = extern "C" fn(ctxp: *mut c_void,
+                                                  array_iter: c_uint,
+                                                  bufp: *const c_void,
+                                                  lenp: c_ulonglong,
+                                                  piecep: c_uchar,
+                                                  changed_bufpp: *mut *mut c_void,
+                                                  changed_lenp: *mut c_ulonglong) -> c_int;
+pub type OCICallbackLobArrayWrite = extern "C" fn(ctxp: *mut c_void,
+                                                  array_iter: c_uint,
+                                                  bufp: *mut c_void,
+                                                  lenp: *mut c_ulonglong,
+                                                  piecep: *mut c_uchar,
+                                                  changed_bufpp: *mut *mut c_void,
+                                                  changed_lenp: *mut c_ulonglong) -> c_int;
+
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub enum CreateMode {

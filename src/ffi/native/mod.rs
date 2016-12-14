@@ -3,12 +3,14 @@
 mod conn;
 mod hndl;
 mod stmt;
+mod lob;
 
 use super::types::Handle;
 use super::types::Descriptor;
 pub use self::conn::*;
 pub use self::hndl::*;
 pub use self::stmt::*;
+pub use self::lob::*;
 
 pub trait HandleType {
   const ID: Handle;
