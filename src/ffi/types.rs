@@ -1,6 +1,6 @@
 
 use std;
-use std::os::raw::c_void;
+use std::os::raw::{c_int, c_void, c_uchar, c_ulonglong, c_uint};
 
 pub type MallocFn  = extern "C" fn(ctxp: *mut c_void, size: usize) -> *mut c_void;
 pub type ReallocFn = extern "C" fn(ctxp: *mut c_void, memptr: *mut c_void, newsize: usize) -> *mut c_void;
@@ -253,8 +253,8 @@ pub enum Descriptor {
   //RowChange      = 79,
   //QueryChange    = 80,
   //LobRegion      = 81,
-  /// Specifies generation of the shard key or the shard group key of C type `OCIShardingKey`.
-  //ShardingKey // почему-то есть в доке, отсутствует в заголовочных файлах
+  // Specifies generation of the shard key or the shard group key of C type `OCIShardingKey`.
+  //ShardingKey,// с версии 12.2c, найти API данной версии на сайте оракла не удалось
 }
 /// Виды атрибутов, которые можно назначать хендлам
 #[derive(Clone, Copy, Debug)]
