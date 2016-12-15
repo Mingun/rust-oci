@@ -25,11 +25,11 @@ struct Handle<T: HandleType> {
   native: *mut T,
 }
 impl<T: HandleType> Handle<T> {
-  fn new(env: *const OCIEnv) -> Result<Handle<T>> {
+  fn new(env: &Env) -> Result<Handle<T>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIHandleAlloc(
-        env as *const c_void,
+        env.native as *const c_void,
         &mut handle, T::ID as c_uint,
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделеное под них место
       )
@@ -71,11 +71,11 @@ struct Descriptor<T: DescriptorType> {
   native: *mut T,
 }
 impl<T: DescriptorType> Descriptor<T> {
-  fn new(env: *const OCIEnv) -> Result<Descriptor<T>> {
+  fn new(env: &Env) -> Result<Descriptor<T>> {
     let mut desc = ptr::null_mut();
     let res = unsafe {
       OCIDescriptorAlloc(
-        env as *const c_void,
+        env.native as *const c_void,
         &mut desc, T::ID as c_uint,
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделеное под них место
       )
@@ -118,10 +118,10 @@ impl Env {
     };
   }
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
-    Handle::new(self.native)
+    Handle::new(&self)
   }
   fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
-    Descriptor::new(self.native)
+    Descriptor::new(&self)
   }
 }
 impl Drop for Env {
