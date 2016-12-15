@@ -263,19 +263,19 @@ pub struct Statement<'conn, 'key> {
   /// Соединение, которое подготовило данное выражение
   conn: &'conn Connection<'conn>,
   /// Внутренний указатель оракла на подготовленное выражение
-  handle: Handle<OCIStmt>,
+  native: *mut OCIStmt,
   /// Ключ для кеширования выражения
   key: Option<&'key str>,
 }
 impl<'conn, 'key> Statement<'conn, 'key> {
   fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: types::Syntax) -> Result<Statement<'c, 'k>> {
-    let mut stmt: Handle<OCIStmt> = try!(conn.server.env.handle());
+    let mut stmt = ptr::null_mut();
     let keyPtr = key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
     let res = unsafe {
       OCIStmtPrepare2(
         conn.context.native,
-        &mut stmt.native,
+        &mut stmt as *mut *mut OCIStmt,
         conn.errorHandle(),
         // Текст SQL запроса
         sql.as_ptr() as *const c_uchar, sql.len() as c_uint,
@@ -285,7 +285,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       )
     };
     return match res {
-      0 => Ok(Statement { conn: conn, handle: stmt, key: key }),
+      0 => Ok(Statement { conn: conn, native: stmt, key: key }),
       e => Err(Error(e)),
     };
   }
@@ -297,7 +297,7 @@ impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
     let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
-    let res = unsafe { OCIStmtRelease(self.handle.native, self.errorHandle(), keyPtr, keyLen, 0) };
+    let res = unsafe { OCIStmtRelease(self.native, self.errorHandle(), keyPtr, keyLen, 0) };
     check(res).expect("OCIStmtRelease");
   }
 }

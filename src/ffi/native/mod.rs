@@ -21,7 +21,7 @@ pub trait HandleType {
 #[derive(Debug)] pub enum OCIServer {}   impl HandleType for OCIServer  { const ID: Handle = Handle::Server; }
 #[derive(Debug)] pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx  { const ID: Handle = Handle::SvcCtx; }
 #[derive(Debug)] pub enum OCISession {}  impl HandleType for OCISession { const ID: Handle = Handle::Session; }
-#[derive(Debug)] pub enum OCIStmt {}     impl HandleType for OCIStmt    { const ID: Handle = Handle::Stmt; }
+#[derive(Debug)] pub enum OCIStmt {}
 
 pub trait DescriptorType {
   const ID: Descriptor;
