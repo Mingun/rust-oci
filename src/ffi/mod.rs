@@ -20,6 +20,7 @@ fn check(native: c_int) -> Result<()> {
 }
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый хендл на ресурсы оракла
+#[derive(Debug)]
 struct Handle<T: HandleType> {
   native: *mut T,
 }
@@ -65,6 +66,7 @@ impl<T: HandleType> Drop for Handle<T> {
 }
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый дескриптор ресурсов оракла
+#[derive(Debug)]
 struct Descriptor<T: DescriptorType> {
   native: *mut T,
 }
@@ -92,6 +94,7 @@ impl<T: DescriptorType> Drop for Descriptor<T> {
 }
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
+#[derive(Debug)]
 struct Env {
   native: *mut OCIEnv,
   mode: types::CreateMode,
@@ -128,6 +131,7 @@ impl Drop for Env {
   }
 }
 //-------------------------------------------------------------------------------------------------
+#[derive(Debug)]
 pub struct Environment {
   env: Env,
   error: Handle<OCIError>,
@@ -158,6 +162,7 @@ impl Drop for Environment {
 }
 //-------------------------------------------------------------------------------------------------
 /// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
+#[derive(Debug)]
 struct Server<'env> {
   env: &'env Environment,
   handle: Handle<OCIServer>,
@@ -198,6 +203,7 @@ impl<'env> Drop for Server<'env> {
 /// Соединение зависит от окружения, создавшего его, таким образом, окружение является менеджером
 /// соединений. При уничтожении окружения все соединения закрываются, а незакоммиченные транзакции
 /// в них откатываются.
+#[derive(Debug)]
 pub struct Connection<'env> {
   server: Server<'env>,
   context: Handle<OCISvcCtx>,
@@ -252,6 +258,7 @@ impl<'env> Drop for Connection<'env> {
   }
 }
 //-------------------------------------------------------------------------------------------------
+#[derive(Debug)]
 pub struct Statement<'conn, 'key> {
   /// Соединение, которое подготовило данное выражение
   conn: &'conn Connection<'conn>,
