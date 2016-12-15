@@ -233,6 +233,7 @@ impl<'env> Connection<'env> {
       )
     };
     try!(check(res));
+    try!(context.set_handle(&session, types::Attr::Session, &env.error));
 
     Ok(Connection { server: server, context: context, session: session })
   }
