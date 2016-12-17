@@ -69,7 +69,7 @@ impl<T: HandleType> Drop for Handle<T> {
 /// Автоматически освобождаемый дескриптор ресурсов оракла
 #[derive(Debug)]
 struct Descriptor<'d, T: 'd + DescriptorType> {
-  native: *mut T,
+  native: *const T,
   phantom: PhantomData<&'d T>,
 }
 impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
@@ -83,7 +83,7 @@ impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
       )
     };
     return match res {
-      0 => Ok(Descriptor { native: desc as *mut T, phantom: PhantomData }),
+      0 => Ok(Descriptor { native: desc as *const T, phantom: PhantomData }),
       e => Err(Error(e))
     };
   }
@@ -98,7 +98,7 @@ impl<'d, T: 'd + DescriptorType> Drop for Descriptor<'d, T> {
 /// Автоматически закрываемый хендл окружения оракла
 #[derive(Debug)]
 struct Env<'e> {
-  native: *mut OCIEnv,
+  native: *const OCIEnv,
   mode: types::CreateMode,
   /// Фантомные данные для статического анализа управления временем жизни окружения. Эмулирует владение
   /// указателем `native` структуры.
@@ -269,7 +269,7 @@ pub struct Statement<'conn, 'key> {
   /// Соединение, которое подготовило данное выражение
   conn: &'conn Connection<'conn>,
   /// Внутренний указатель оракла на подготовленное выражение
-  native: *mut OCIStmt,
+  native: *const OCIStmt,
   /// Ключ для кеширования выражения
   key: Option<&'key str>,
 }
@@ -303,7 +303,7 @@ impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
     let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
-    let res = unsafe { OCIStmtRelease(self.native, self.errorHandle(), keyPtr, keyLen, 0) };
+    let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.errorHandle(), keyPtr, keyLen, 0) };
     check(res).expect("OCIStmtRelease");
   }
 }
