@@ -319,3 +319,26 @@ pub enum CachingMode {
 impl Default for CachingMode {
   fn default() -> Self { CachingMode::Default }
 }
+/// Коды ошибок, которые могут вырнуть функции оракла (не путать с кодами ошибок оракла `ORA-xxxxx`)
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum ErrorCode {
+  /// Все в порядке, проблем нет
+  Success = 0,
+  /// Функция выполнилась успешно, но есть диагностическая информация, которая может быть получена вызовом(ами) `OCIErrorGet`.
+  SuccessWithInfo = 1,
+  /// Вызов функции не вернул данных. Это ожидаемая ошибка, которая должна быть соответствующе обработана.
+  NoData = 100,
+  /// При выполнении функции произошла ошибка. Вызов `OCIErrorGet` вернет подробности.
+  Error = -1,
+  InvalidHandle = -2,
+  /// Приложение должно предоставить больше данных и повторно вызвать функцию.
+  NeedData = 99,
+  /// Контекст сервера в неблокирующем режиме и сейчас выполняется операция, которая не может быть прервана примо сейчас.
+  /// Нужно посторить вызов функции через некоторое время, чтобы получить результат.
+  StiilExecuting = -3123,
+  /// Передается пользовательским Callback-ом для уведомления оракла, что необходимо продолжить выполнение
+  Continue = -24200,
+  /// This code is returned only from a callback function. It indicates that the callback function is done with the user row callback.
+  RowCallbackDone = -24201,
+}
