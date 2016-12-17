@@ -41,10 +41,11 @@ mod tests {
     let mut args = env::args();
     let path = args.next().unwrap();
     let params = ConnectParams {
-      dblink: args.next().expect(format!("Usage: {} db [[username [password]]", path).as_ref()),
+      dblink: args.next().unwrap_or("".into()),
       mode: AttachMode::default(),
-      username: args.next().unwrap_or("scott".into()),
-      password: args.next().unwrap_or("tiget".into()),
+      // Скрипт настройки на трависе добавляет пользователя, из под которого запускается с пустым паролем
+      username: args.next().unwrap_or(env::var("USER").expect("Environment variable USER not set")),
+      password: args.next().unwrap_or("".into()),
     };
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
     let stmt = conn.prepare("select * from dual").expect("Can't prepare statement");
