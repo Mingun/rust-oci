@@ -1,4 +1,5 @@
 
+use std::marker::PhantomData;
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
 use std::ptr;
 use super::Error;
@@ -95,11 +96,14 @@ impl<T: DescriptorType> Drop for Descriptor<T> {
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 #[derive(Debug)]
-struct Env {
+struct Env<'e > {
   native: *mut OCIEnv,
   mode: types::CreateMode,
+  /// Фантомные данные для статического анализа управления временем жизни окружения. Эмулирует владение
+  /// указателем `native` структуры.
+  phantom: PhantomData<&'e OCIEnv>,
 }
-impl Env {
+impl<'e> Env<'e> {
   fn new(mode: types::CreateMode) -> Result<Self> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
@@ -113,7 +117,7 @@ impl Env {
       )
     };
     return match res {
-      0 => Ok(Env { native: handle, mode: mode }),
+      0 => Ok(Env { native: handle, mode: mode, phantom: PhantomData }),
       e => Err(Error(e))
     };
   }
@@ -124,7 +128,7 @@ impl Env {
     Descriptor::new(&self)
   }
 }
-impl Drop for Env {
+impl<'e> Drop for Env<'e> {
   fn drop(&mut self) {
     let res = unsafe { OCITerminate(self.mode as c_uint) };
     check(res).expect("OCITerminate");
@@ -132,11 +136,11 @@ impl Drop for Env {
 }
 //-------------------------------------------------------------------------------------------------
 #[derive(Debug)]
-pub struct Environment {
-  env: Env,
+pub struct Environment<'e> {
+  env: Env<'e>,
   error: Handle<OCIError>,
 }
-impl Environment {
+impl<'e> Environment<'e> {
   pub fn new(mode: types::CreateMode) -> Result<Self> {
     let env = try!(Env::new(mode));
     let err: Handle<OCIError> = try!(env.handle());
@@ -157,14 +161,14 @@ impl Environment {
     self.error.native
   }
 }
-impl Drop for Environment {
+impl<'e> Drop for Environment<'e> {
   fn drop(&mut self) {}
 }
 //-------------------------------------------------------------------------------------------------
 /// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
 #[derive(Debug)]
 struct Server<'env> {
-  env: &'env Environment,
+  env: &'env Environment<'env>,
   handle: Handle<OCIServer>,
   mode: types::AttachMode,
 }
