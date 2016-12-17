@@ -13,6 +13,8 @@ env:
     - ORACLE_FILE=oracle11g/xe/oracle-xe-11.2.0-1.0.x86_64.rpm.zip
     - ORACLE_HOME=/u01/app/oracle/product/11.2.0/xe
     - ORACLE_SID=XE
+    - PATH=$PATH:$ORACLE_HOME/bin
+    - LD_LIBRARY_PATH=$ORACLE_HOME/lib
 
 before_install:
   - .travis/oracle/download.sh
