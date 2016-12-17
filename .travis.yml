@@ -1,0 +1,6 @@
+language: rust
+rust:
+  # Используются возможности, которые имеются только в ночных сборках, в часности, associated_constants
+  # - stable
+  # - beta
+  - nightly
