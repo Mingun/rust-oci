@@ -15,9 +15,15 @@ pub use self::lob::*;
 pub trait HandleType {
   const ID: Handle;
 }
+/// Теп, реализующий данный типаж, может быть передан в функцию `OCIErrorGet` для получения информации об ошибке
+pub trait ErrorHandle {
+  const ID: Handle;
+}
 
 #[derive(Debug)] pub enum OCIEnv {}
+impl ErrorHandle for OCIEnv { const ID: Handle = Handle::Env; }
 #[derive(Debug)] pub enum OCIError {}    impl HandleType for OCIError   { const ID: Handle = Handle::Error; }
+impl ErrorHandle for OCIError { const ID: Handle = Handle::Error; }
 #[derive(Debug)] pub enum OCIServer {}   impl HandleType for OCIServer  { const ID: Handle = Handle::Server; }
 #[derive(Debug)] pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx  { const ID: Handle = Handle::SvcCtx; }
 #[derive(Debug)] pub enum OCISession {}  impl HandleType for OCISession { const ID: Handle = Handle::Session; }
