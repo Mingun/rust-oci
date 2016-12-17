@@ -32,8 +32,21 @@ pub struct ConnectParams {
 
 #[cfg(test)]
 mod tests {
+  use std::env;
+  use super::*;
   #[test]
   fn it_works() {
-    
+    let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
+
+    let mut args = env::args();
+    let path = args.next().unwrap();
+    let params = ConnectParams {
+      dblink: args.next().expect(format!("Usage: {} db [[username [password]]", path).as_ref()),
+      mode: AttachMode::default(),
+      username: args.next().unwrap_or("scott".into()),
+      password: args.next().unwrap_or("tiget".into()),
+    };
+    let conn = env.connect(params).expect("Can't connect to ORACLE database");
+    let stmt = conn.prepare("select * from dual").expect("Can't prepare statement");
   }
 }
