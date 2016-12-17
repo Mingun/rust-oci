@@ -158,8 +158,8 @@ impl<'e> Environment<'e> {
   fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
     self.env.descriptor()
   }
-  fn errorHandle(&self) -> *mut OCIError {
-    self.error.native
+  fn error(&self) -> &Handle<OCIError> {
+    &self.error
   }
 }
 impl<'e> Drop for Environment<'e> {
@@ -188,15 +188,16 @@ impl<'env> Server<'env> {
       e => Err(Error(e))
     };
   }
-  fn errorHandle(&self) -> *mut OCIError {
-    self.env.errorHandle()
+  fn error(&self) -> &Handle<OCIError> {
+    self.env.error()
   }
 }
 impl<'env> Drop for Server<'env> {
   fn drop(&mut self) {
     let res = unsafe {
       OCIServerDetach(
-        self.handle.native, self.errorHandle(),
+        self.handle.native,
+        self.error().native,
         self.mode as c_uint
       )
     };
@@ -242,8 +243,8 @@ impl<'env> Connection<'env> {
 
     Ok(Connection { server: server, context: context, session: session })
   }
-  fn errorHandle(&self) -> *mut OCIError {
-    self.server.errorHandle()
+  fn error(&self) -> &Handle<OCIError> {
+    self.server.error()
   }
 
   pub fn prepare<'c>(&'c self, sql: &str) -> Result<Statement<'c, 'c>> {
@@ -255,7 +256,7 @@ impl<'env> Drop for Connection<'env> {
     let res = unsafe {
       OCISessionEnd(
         self.context.native,
-        self.errorHandle(),
+        self.error().native,
         self.session.native,
         types::AuthMode::Default as c_uint
       )
@@ -282,7 +283,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       OCIStmtPrepare2(
         conn.context.native,
         &mut stmt as *mut *mut OCIStmt,
-        conn.errorHandle(),
+        conn.error().native,
         // Текст SQL запроса
         sql.as_ptr() as *const c_uchar, sql.len() as c_uint,
         // Ключ кеширования, по которому достанется запрос, если он был закеширован
@@ -295,15 +296,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       e => Err(Error(e)),
     };
   }
-  fn errorHandle(&self) -> *mut OCIError {
-    self.conn.errorHandle()
+  fn error(&self) -> &Handle<OCIError> {
+    self.conn.error()
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
     let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
-    let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.errorHandle(), keyPtr, keyLen, 0) };
+    let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.error().native, keyPtr, keyLen, 0) };
     check(res).expect("OCIStmtRelease");
   }
 }
