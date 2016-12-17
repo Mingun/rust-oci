@@ -68,11 +68,12 @@ impl<T: HandleType> Drop for Handle<T> {
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый дескриптор ресурсов оракла
 #[derive(Debug)]
-struct Descriptor<T: DescriptorType> {
+struct Descriptor<'d, T: 'd + DescriptorType> {
   native: *mut T,
+  phantom: PhantomData<&'d T>,
 }
-impl<T: DescriptorType> Descriptor<T> {
-  fn new(env: &Env) -> Result<Descriptor<T>> {
+impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
+  fn new<'e>(env: &'e Env) -> Result<Descriptor<'e, T>> {
     let mut desc = ptr::null_mut();
     let res = unsafe {
       OCIDescriptorAlloc(
@@ -82,12 +83,12 @@ impl<T: DescriptorType> Descriptor<T> {
       )
     };
     return match res {
-      0 => Ok(Descriptor { native: desc as *mut T }),
+      0 => Ok(Descriptor { native: desc as *mut T, phantom: PhantomData }),
       e => Err(Error(e))
     };
   }
 }
-impl<T: DescriptorType> Drop for Descriptor<T> {
+impl<'d, T: 'd + DescriptorType> Drop for Descriptor<'d, T> {
   fn drop(&mut self) {
     let res = unsafe { OCIDescriptorFree(self.native as *mut c_void, T::ID as c_uint) };
     check(res).expect("OCIDescriptorFree");
@@ -96,7 +97,7 @@ impl<T: DescriptorType> Drop for Descriptor<T> {
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 #[derive(Debug)]
-struct Env<'e > {
+struct Env<'e> {
   native: *mut OCIEnv,
   mode: types::CreateMode,
   /// Фантомные данные для статического анализа управления временем жизни окружения. Эмулирует владение
