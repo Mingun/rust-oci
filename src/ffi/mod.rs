@@ -45,7 +45,7 @@ impl<T: HandleType> Handle<T> {
       OCIAttrSet(
         self.native as *mut c_void, T::ID as c_uint,
         value, size, attrtype as c_uint,
-        errhp.native
+        errhp.native_mut()
       )
     };
     return check(res);
@@ -57,6 +57,9 @@ impl<T: HandleType> Handle<T> {
   /// Устанавливает хендл-атрибут хендлу
   fn set_handle<U: HandleType>(&mut self, value: &Handle<U>, attrtype: types::Attr, errhp: &Handle<OCIError>) -> Result<()> {
     self.set(value.native as *mut c_void, 0, attrtype, errhp)
+  }
+  fn native_mut(&self) -> *mut T {
+    self.native
   }
 }
 impl<T: HandleType> Drop for Handle<T> {
@@ -178,7 +181,7 @@ impl<'env> Server<'env> {
     let server: Handle<OCIServer> = try!(env.handle());
     let res = unsafe {
       OCIServerAttach(
-        server.native, env.error.native,
+        server.native_mut(), env.error.native_mut(),
         dblink.as_ptr(), dblink.len() as c_int,
         mode as c_uint
       )
@@ -196,8 +199,8 @@ impl<'env> Drop for Server<'env> {
   fn drop(&mut self) {
     let res = unsafe {
       OCIServerDetach(
-        self.handle.native,
-        self.error().native,
+        self.handle.native_mut(),
+        self.error().native_mut(),
         self.mode as c_uint
       )
     };
@@ -229,9 +232,9 @@ impl<'env> Connection<'env> {
     try!(context.set_handle(&server.handle, types::Attr::Server, &env.error));
     let res = unsafe {
       OCISessionBegin(
-        context.native,
-        env.error.native,
-        session.native,
+        context.native_mut(),
+        env.error.native_mut(),
+        session.native_mut(),
         // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
         // базы данных
         types::CredentialMode::Rdbms as c_uint,
@@ -255,9 +258,9 @@ impl<'env> Drop for Connection<'env> {
   fn drop(&mut self) {
     let res = unsafe {
       OCISessionEnd(
-        self.context.native,
-        self.error().native,
-        self.session.native,
+        self.context.native_mut(),
+        self.error().native_mut(),
+        self.session.native_mut(),
         types::AuthMode::Default as c_uint
       )
     };
@@ -281,9 +284,9 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     let keyLen = key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
     let res = unsafe {
       OCIStmtPrepare2(
-        conn.context.native,
+        conn.context.native_mut(),
         &mut stmt as *mut *mut OCIStmt,
-        conn.error().native,
+        conn.error().native_mut(),
         // Текст SQL запроса
         sql.as_ptr() as *const c_uchar, sql.len() as c_uint,
         // Ключ кеширования, по которому достанется запрос, если он был закеширован
@@ -304,7 +307,7 @@ impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
     let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
-    let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.error().native, keyPtr, keyLen, 0) };
+    let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.error().native_mut(), keyPtr, keyLen, 0) };
     check(res).expect("OCIStmtRelease");
   }
 }
