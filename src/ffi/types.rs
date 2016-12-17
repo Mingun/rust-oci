@@ -66,6 +66,9 @@ pub enum CreateMode {
   /// Enables NLS character validation. See Comments for more information.
   EnableNlsValidation       = 1 << 24,
 }
+impl Default for CreateMode {
+  fn default() -> Self { CreateMode::Default }
+}
 /// Режим, в котором подключаться к cерверу базы данных при вызове `OCIServerAttach()`.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
@@ -74,6 +77,9 @@ pub enum AttachMode {
   Default,
   /// Use connection pooling.
   CPool,
+}
+impl Default for AttachMode {
+  fn default() -> Self { AttachMode::Default }
 }
 /// Specifies the various modes of operation
 #[derive(Clone, Copy, Debug)]
@@ -107,6 +113,9 @@ pub enum AuthMode {
   //SysBkp      = 1 << 16,
   //SysDgd      = 1 << 17,
   //SysKmt      = 1 << 18,
+}
+impl Default for AuthMode {
+  fn default() -> Self { AuthMode::Default }
 }
 /// Specifies the type of credentials to use for establishing the user session
 #[derive(Clone, Copy, Debug)]
@@ -277,6 +286,9 @@ pub enum Syntax {
   /// Specifies the statement to be translated according to the SQL translation profile set in the session.
   Foreign = std::u32::MAX as isize,
 }
+impl Default for Syntax {
+  fn default() -> Self { Syntax::Native }
+}
 /// Режим кеширования подготавливаемых запросов к базе данных
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
@@ -303,4 +315,7 @@ pub enum CachingMode {
   ///
   /// [1]: http://docs.oracle.com/database/121/LNOCI/oci10new.htm#CEGJCAJI
   ImplResultsCLient = 0x0400,
+}
+impl Default for CachingMode {
+  fn default() -> Self { CachingMode::Default }
 }
