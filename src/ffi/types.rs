@@ -271,6 +271,8 @@ pub enum Descriptor {
 pub enum Attr {
   Server = 6,
   Session = 7,
+  // RowCount = 9,
+  ParamCount = 18,
   Username = 22,
   Password = 23,
 }

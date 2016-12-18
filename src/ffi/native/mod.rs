@@ -12,11 +12,21 @@ pub use self::hndl::*;
 pub use self::stmt::*;
 pub use self::lob::*;
 
+/// Тип, реализующий данный типаж, может быть передан в функцию `OCIHandleAlloc` для создания хендла.
+/// Ассоциированная константа `ID` указывает тип хендла, который будет передан в функцию.
 pub trait HandleType {
   const ID: Handle;
 }
-/// Теп, реализующий данный типаж, может быть передан в функцию `OCIErrorGet` для получения информации об ошибке
+/// Тип, реализующий данный типаж, может быть передан в функцию `OCIErrorGet` для получения информации об ошибке
 pub trait ErrorHandle {
+  const ID: Handle;
+}
+/// Тип, реализующий данный типаж, может быть передан в функции `OCIAttrGet/OCIAttrSet` для получения или установки атрибута
+pub trait AttrHandle {
+  const ID: Handle;
+}
+/// Тип, реализующий данный типаж, может быть передан в функцию `OCIParamGet` для получения информации о параметре
+pub trait ParamHandle {
   const ID: Handle;
 }
 
@@ -28,9 +38,14 @@ impl ErrorHandle for OCIError { const ID: Handle = Handle::Error; }
 #[derive(Debug)] pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx  { const ID: Handle = Handle::SvcCtx; }
 #[derive(Debug)] pub enum OCISession {}  impl HandleType for OCISession { const ID: Handle = Handle::Session; }
 #[derive(Debug)] pub enum OCIStmt {}
+impl AttrHandle  for OCIStmt { const ID: Handle = Handle::Stmt; }
+impl ParamHandle for OCIStmt { const ID: Handle = Handle::Stmt; }
 
+/// Тип, реализующий данный типаж, может быть передан в функцию `OCIDescriptorAlloc` для создания дескриптора.
+/// Ассоциированная константа `ID` указывает тип дескриптора, который будет передан в функцию.
 pub trait DescriptorType {
   const ID: Descriptor;
 }
 #[derive(Debug)] pub enum OCILobLocator {} impl DescriptorType for OCILobLocator { const ID: Descriptor = Descriptor::Lob; }
 #[derive(Debug)] pub enum OCISnapshot {}   impl DescriptorType for OCISnapshot   { const ID: Descriptor = Descriptor::Snapshot; }
+#[derive(Debug)] pub enum OCIParam {}      impl DescriptorType for OCIParam      { const ID: Descriptor = Descriptor::Param; }

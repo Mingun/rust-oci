@@ -54,6 +54,47 @@ fn decode_error<T: ErrorHandle>(handle: *mut T, result: c_int) -> Error {
   let (_, code, msg) = decode_error_piece(handle, 1);
   Error { result: result as isize, code: code as isize, message: msg }
 }
+
+//-------------------------------------------------------------------------------------------------
+unsafe fn attr_get<T: AttrHandle>(handle: *const T, value: *mut c_void, mut size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  let res = OCIAttrGet(
+    handle as *const c_void, T::ID as c_uint,
+    value, &mut size, attrtype as c_uint,
+    err.native_mut()
+  );
+  return err.check(res);
+}
+fn attr_get_c_uint<T: AttrHandle>(handle: *const T, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<c_uint> {
+  let mut count: c_uint = 0;
+  let ptr = &mut count as *mut c_uint;
+  try!(unsafe { attr_get(handle, ptr as *mut c_void, 0, attrtype, err) });
+
+  Ok(count)
+}
+unsafe fn attr_set<T: AttrHandle>(handle: *mut T, value: *mut c_void, size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  let res = OCIAttrSet(
+    handle as *mut c_void, T::ID as c_uint,
+    value, size, attrtype as c_uint,
+    err.native_mut()
+  );
+  return err.check(res);
+}
+//-------------------------------------------------------------------------------------------------
+fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCIError>) -> Result<Descriptor<'d, OCIParam>> {
+  let mut desc = ptr::null_mut();
+  let res = unsafe {
+    OCIParamGet(
+      handle as *const c_void, T::ID as c_uint,
+      err.native_mut(),
+      &mut desc, pos
+    )
+  };
+  match res {
+    0 => Ok(Descriptor { native: desc as *const OCIParam, phantom: PhantomData }),
+    e => Err(err.decode(e)),
+  }
+}
+//-------------------------------------------------------------------------------------------------
 fn check(native: c_int) -> Result<()> {
   return match native {
     0 => Ok(()),
@@ -89,6 +130,9 @@ impl<T: HandleType> Handle<T> {
     };
   }
   fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+    //FIXME: Использование данной функции требует реализовать AttrHandle для всех, кто реализует HandleType.
+    // Но к сожалению, попытка сделать это дает невнятную ошибку о том, что тип-донор для ID может не жить достаточно долго(!)
+    //unsafe { attr_set(self.native, value, size, attrtype, err) }
     let res = unsafe {
       OCIAttrSet(
         self.native as *mut c_void, T::ID as c_uint,
@@ -410,6 +454,12 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       )
     };
     return self.error().check(res);
+  }
+  fn param_count(&self) -> Result<c_uint> {
+    attr_get_c_uint(self.native, types::Attr::ParamCount, self.error())
+  }
+  fn param_get(&self, pos: c_uint) -> Result<Descriptor<OCIParam>> {
+    param_get(self.native, pos, self.error())
   }
   pub fn query(&self) -> Result<()> {
     self.execute(0, 0, Default::default())
