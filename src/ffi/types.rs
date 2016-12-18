@@ -272,9 +272,54 @@ pub enum Attr {
   Server = 6,
   Session = 7,
   // RowCount = 9,
+  /// Атрибут на хендле выражения, показывает количество колонок, извлекаемых `select` выражением
   ParamCount = 18,
   Username = 22,
   Password = 23,
+
+
+// Attributes common to Columns and Stored Procs
+  /// maximum size of the data
+  DataSize      = 1,
+  /// the SQL type of the column/argument
+  DataType      = 2,
+  /// the display size
+  DisplaySize   = 3,
+  /// the name of the column/argument
+  Name          = 4,
+  /// precision if number type
+  Precision     = 5,
+  /// scale if number type
+  //Scale         = 6,
+  /// is it null ?
+  //IsNull        = 7,
+  /// name of the named data type or a package name for package private types
+  TypeName      = 8,
+  /// the schema name
+  SchemaName    = 9,
+  /// type name if package private type
+  SubName       = 10,
+  /// relative position of col/arg in the list of cols/args
+  Position      = 11,
+  /// package name of package type
+  PackageName   = 12,
+// complex object retrieval parameter attributes
+  ComplexObjectCompType        = 50, 
+  ComplexObjectCompTypeLevel   = 51,
+  ComplexObjectLevel           = 52,
+  ComplexObjectCollOutOfLine   = 53,
+
+// Only Columns
+  /// the display name
+  DisplayName      = 100,
+  /// encrypted data size
+  EncryptedSize    = 101,
+  /// column is encrypted ?
+  ColEncrypted     = 102,
+  /// is encrypted column salted ?
+  ColEncryptedSalt = 103,
+  /// column properties
+  ColProps         = 104,
 }
 /// Диалект, используемый для разбора SQL-кода запросов
 #[derive(Clone, Copy, Debug)]
@@ -408,4 +453,118 @@ pub enum FetchMode {
 }
 impl Default for FetchMode {
   fn default() -> Self { FetchMode::Default }
+}
+/// Возможные типы данных базы данных
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+#[repr(u16)]
+pub enum Type {
+  /// (ORANET TYPE) character string
+  CHR  = 1,
+  /// (ORANET TYPE) oracle numeric
+  NUM  = 2,
+  /// (ORANET TYPE) integer 
+  INT  = 3,
+  /// (ORANET TYPE) Floating point number
+  FLT  = 4,
+  /// zero terminated string
+  STR  = 5,
+  /// NUM with preceding length byte 
+  VNU  = 6,
+  /// (ORANET TYPE) Packed Decimal Numeric
+  PDN  = 7,
+  /// long
+  LNG  = 8,
+  /// Variable character string
+  VCS  = 9,
+  /// Null/empty PCC Descriptor entry
+  NON  = 10,
+  /// rowid
+  RID  = 11,
+  /// date in oracle format
+  DAT  = 12,
+  /// binary in VCS format
+  VBI  = 15,
+  /// Native Binary float
+  BFLOAT = 21,
+  /// NAtive binary double
+  BDOUBLE = 22,
+  /// binary data(DTYBIN)
+  BIN  = 23,
+  /// long binary
+  LBI  = 24,
+  /// unsigned integer
+  UIN  = 68,
+  /// Display sign leading separate
+  SLS  = 91,
+  /// Longer longs (char)
+  LVC  = 94,
+  /// Longer long binary
+  LVB  = 95,
+  /// Ansi fixed char
+  AFC  = 96,
+  /// Ansi Var char
+  AVC  = 97,
+  /// binary float canonical
+  IBFLOAT  = 100,
+  /// binary double canonical
+  IBDOUBLE = 101,
+  /// cursor  type
+  CUR  = 102,
+  /// rowid descriptor
+  RDD  = 104,
+  /// label type
+  LAB  = 105,
+  /// oslabel type
+  OSL  = 106,
+
+  /// named object type
+  NTY  = 108,
+  /// ref type
+  REF  = 110,
+  /// character lob
+  CLOB = 112,
+  /// binary lob
+  BLOB = 113,
+  /// binary file lob
+  BFILEE = 114,
+  /// character file lob
+  CFILEE = 115,
+  /// result set type
+  RSET = 116,
+  /// named collection type (varray or nested table)
+  NCO  = 122,
+  /// OCIString type
+  VST  = 155,
+  /// OCIDate type
+  ODT  = 156,
+
+// datetimes and intervals
+  /// ANSI Date
+  DATE          = 184,
+  /// TIME
+  TIME          = 185,
+  /// TIME WITH TIME ZONE
+  TIME_TZ       = 186,
+  /// TIMESTAMP
+  TIMESTAMP     = 187,
+  /// TIMESTAMP WITH TIME ZONE
+  TIMESTAMP_TZ  = 188,
+  /// INTERVAL YEAR TO MONTH
+  INTERVAL_YM   = 189,
+  /// INTERVAL DAY TO SECOND
+  INTERVAL_DS   = 190,
+  ///         /*  */
+  TIMESTAMP_LTZ = 232,
+
+  /// pl/sql representation of named types
+  PNTY   = 241,
+
+// some pl/sql specific types
+  /// pl/sql 'record' (or %rowtype)
+  REC    = 250,
+  /// pl/sql 'indexed table'
+  TAB    = 251,
+  /// pl/sql 'boolean'
+  BOL    = 252,
 }
