@@ -1,7 +1,7 @@
 
 use std::ffi::CStr;
 use std::marker::PhantomData;
-use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint};
+use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ushort};
 use std::ptr;
 use super::Error;
 use super::Result;
@@ -366,6 +366,53 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   }
   fn error(&self) -> &Handle<OCIError> {
     self.conn.error()
+  }
+  /// # Параметры
+  /// - count:
+  ///   * Для `select` выражений это количество строк, которые нужно извлечть prefetch-ем, уже в момент выполнения
+  ///     запроса (т.е. сервер БД вернет их, не дожидаясь вызова `OCIStmtFetch2`). Если prefetch не нужен, то должно
+  ///     быть равно `0`.
+  ///   * Для не-`select` выражений это номер последнего элемента в буфере данных со связанными параметрами, которые
+  ///     нужно использовать при выполнении данной операции
+  /// - offset:
+  ///   Смещение с буфере со связанными переменными, с которого необходимо начать выполнение 
+  fn execute(&self, count: c_uint, offset: c_uint, mode: types::ExecuteMode) -> Result<()> {
+    let res = unsafe {
+      OCIStmtExecute(
+        self.conn.context.native_mut(),
+        self.native as *mut OCIStmt,
+        self.error().native_mut(),
+        count,
+        offset,
+        ptr::null(),
+        ptr::null_mut(),
+        mode as c_uint
+      )
+    };
+    return self.error().check(res);
+  }
+  /// Извлекает из текущего выражения данные, которые в нем имеются после выполнения `select`-а.
+  ///
+  /// # Параметры
+  /// - count:
+  ///   Количество строк, которые нужно получить из текущей позиции курсора
+  /// - index:
+  ///   Для режимов `Absolute` и `Relative` определяет номер извлекаемого элемента, в остальных случаях игнорируется.
+  fn fetch(&self, count: c_uint, mode: types::FetchMode, index: c_int) -> Result<()> {
+    let res = unsafe {
+      OCIStmtFetch2(
+        self.native as *mut OCIStmt,
+        self.error().native_mut(),
+        count,
+        mode as c_ushort,
+        index as c_int,
+        0 // Неясно, что такое
+      )
+    };
+    return self.error().check(res);
+  }
+  pub fn query(&self) -> Result<()> {
+    self.execute(0, 0, Default::default())
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {

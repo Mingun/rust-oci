@@ -342,3 +342,68 @@ pub enum ErrorCode {
   /// This code is returned only from a callback function. It indicates that the callback function is done with the user row callback.
   RowCallbackDone = -24201,
 }
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum ExecuteMode {
+  /// Calling `OCIStmtExecute()` in this mode executes the statement. It also implicitly returns describe information
+  /// about the select list.
+  Default = 0,
+  //BatchMode = 1 << 0,
+  /// Used when the application knows in advance exactly how many rows it is fetching. This mode turns prefetching off for
+  /// Oracle Database release 8 or later mode, and requires that defines be done before the execute call. Using this mode
+  /// cancels the cursor after the desired rows are fetched and may result in reduced server-side resource usage.
+  ExactFetch = 1 << 1,
+  /// Required for the result set to be scrollable. The result set cannot be updated. See "Fetching Results" for more
+  /// information about this mode. This mode cannot be used with any other mode.
+  StmtScrollableReadonly = 1 << 3,
+  /// This mode is for users who want to describe a query before execution. Calling `OCIStmtExecute()` in this mode does
+  /// not execute the statement, but it does return the select-list description. To maximize performance, Oracle recommends
+  /// that applications execute the statement in default mode and use the implicit describe that accompanies the execution.
+  DescribeOnly = 1 << 4,
+  /// When a statement is executed in this mode, the current transaction is committed after execution, if execution
+  /// completes successfully.
+  CommitOnSuccess = 1 << 5,
+  //NonBlocking = 1 << 6,
+  /// See "Batch Error Mode" for information about this mode.
+  BatchErrors = 1 << 7,
+  /// This mode allows the user to parse the query before execution. Executing in this mode parses the query and returns
+  /// parse errors in the SQL, if any. Users must note that this involves an additional round-trip to the server. To maximize
+  /// performance, Oracle recommends that the user execute the statement in the default mode, which, parses the statement as
+  /// part of the bundled operation.
+  ParseOnly = 1 << 8,
+  //ShowDmlWarnings = 1 << 10,
+  //ResultCache = 1 << 17,
+  //NoResultCache = 1 << 18,
+  /// This mode allows the user to get DML rowcounts per iteration. It is an error to pass this mode for statements that
+  /// are not DMLs. See "Statement Handle Attributes" for more information. This mode can be used along with `BatchErrors`.
+  ReturnRowCountArray = 1 << 20,
+}
+impl Default for ExecuteMode {
+  fn default() -> Self { ExecuteMode::Default }
+}
+/// Определяет способ получения данных из курсора
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum FetchMode {
+  /// Has the same effect as `Next`.
+  Default  = 0,
+  /// Gets the current row.
+  Current  = 1 << 0,
+  /// Gets the next row from the current position. It is the default (has the same effect as `Default`).
+  /// Use for a nonscrollable statement handle.
+  Next     = 1 << 1,
+  /// Gets the first row in the result set.
+  First    = 1 << 2,
+  /// Gets the last row in the result set.
+  Last     = 1 << 3,
+  /// Positions the result set on the previous row from the current row in the result set. You can fetch multiple rows using
+  /// this mode, from the "previous row" also.
+  Prior    = 1 << 4,
+  /// Fetches the row number (specified by `fetchOffset` parameter) in the result set using absolute positioning.
+  Absolute = 1 << 5,
+  /// Fetches the row number (specified by `fetchOffset` parameter) in the result set using relative positioning.
+  Relative = 1 << 6,
+}
+impl Default for FetchMode {
+  fn default() -> Self { FetchMode::Default }
+}
