@@ -1,5 +1,6 @@
 
 use std::ffi::CStr;
+use std::fmt;
 use std::marker::PhantomData;
 use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ushort};
 use std::ptr;
@@ -103,7 +104,6 @@ fn check(native: c_int) -> Result<()> {
 }
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый хендл на ресурсы оракла
-#[derive(Debug)]
 struct Handle<T: HandleType> {
   native: *mut T,
 }
@@ -162,6 +162,14 @@ impl<T: HandleType> Drop for Handle<T> {
     check(res).expect("OCIHandleFree");
   }
 }
+impl<T: HandleType> fmt::Debug for Handle<T> {
+  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fmt.debug_tuple("Handle")
+       .field(&T::ID)
+       .field(&self.native)
+       .finish()
+  }
+}
 
 impl Handle<OCIError> {
   /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
@@ -177,7 +185,6 @@ impl Handle<OCIError> {
 }
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый дескриптор ресурсов оракла
-#[derive(Debug)]
 struct Descriptor<'d, T: 'd + DescriptorType> {
   native: *const T,
   phantom: PhantomData<&'d T>,
@@ -206,6 +213,15 @@ impl<'d, T: 'd + DescriptorType> Drop for Descriptor<'d, T> {
     check(res).expect("OCIDescriptorFree");
   }
 }
+impl<'d, T: 'd + DescriptorType> fmt::Debug for Descriptor<'d, T> {
+  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fmt.debug_tuple("Descriptor")
+       .field(&T::ID)
+       .field(&self.native)
+       .finish()
+  }
+}
+
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 #[derive(Debug)]
