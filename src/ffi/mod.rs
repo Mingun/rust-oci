@@ -3,6 +3,7 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::fmt;
 use std::marker::PhantomData;
+use std::mem;
 use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ushort};
 use std::ptr;
 use std::slice;
@@ -519,6 +520,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   fn param_get(&self, pos: c_uint) -> Result<Descriptor<OCIParam>> {
     param_get(self.native, pos, self.error())
   }
+
+  pub fn columns(&self) -> Result<Vec<Column>> {
+    let cnt = try!(self.param_count());
+    let mut vec = Vec::with_capacity(cnt as usize);
+    for i in 0..cnt {
+      vec.push(try!(Column::new(i as usize, try!(self.param_get(i+1)), self.error())));
+    }
+    Ok(vec)
+  }
   pub fn query(&self) -> Result<()> {
     self.execute(0, 0, Default::default())
   }
@@ -529,5 +539,30 @@ impl<'conn, 'key> Drop for Statement<'conn, 'key> {
     let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
     let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.error().native_mut(), keyPtr, keyLen, 0) };
     self.error().check(res).expect("OCIStmtRelease");
+  }
+}
+
+//-------------------------------------------------------------------------------------------------
+/// Структура для представления колонки базы данных из списка выбора
+#[derive(Debug)]
+pub struct Column {
+  /// Номер столбца
+  pub pos: usize,
+  pub type_: types::Type,
+  /// Название колонки в базе данных
+  pub name: String,
+  /// Ширина колонки в байтах
+  pub size: usize,
+}
+
+impl Column {
+  fn new(pos: usize, desc: Descriptor<OCIParam>, err: &Handle<OCIError>) -> Result<Self> {
+    let type_ = try!(desc.get_c_uint(types::Attr::DataType, err));
+    let name  = try!(desc.get_str(types::Attr::Name, err));
+    //let ischar= try!(desc.get_c_uint(types::Attr::CharUsed, err));
+    //let size  = try!(desc.get_c_uint(types::Attr::CharSize, err));
+    let size  = try!(desc.get_c_uint(types::Attr::DataSize, err));
+
+    Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) } })
   }
 }
