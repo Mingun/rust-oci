@@ -1,5 +1,6 @@
 //! Модуль, содержащий код для связывания с C интерфейсов OCI.
 
+mod bind;
 mod conn;
 mod hndl;
 mod stmt;
@@ -7,6 +8,7 @@ mod lob;
 
 use super::types::Handle;
 use super::types::Descriptor;
+pub use self::bind::*;
 pub use self::conn::*;
 pub use self::hndl::*;
 pub use self::stmt::*;
@@ -49,3 +51,5 @@ pub trait DescriptorType {
 #[derive(Debug)] pub enum OCILobLocator {} impl DescriptorType for OCILobLocator { const ID: Descriptor = Descriptor::Lob; }
 #[derive(Debug)] pub enum OCISnapshot {}   impl DescriptorType for OCISnapshot   { const ID: Descriptor = Descriptor::Snapshot; }
 #[derive(Debug)] pub enum OCIParam {}      impl DescriptorType for OCIParam      { const ID: Descriptor = Descriptor::Param; }
+#[derive(Debug)] pub enum OCIBind {}
+#[derive(Debug)] pub enum OCIDefine {}

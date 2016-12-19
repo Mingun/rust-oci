@@ -1,6 +1,6 @@
 
 use std::mem;
-use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ushort};
+use std::os::raw::{c_longlong, c_int, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 
 use super::super::Result;
@@ -102,6 +102,25 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         mode as c_ushort,
         index as c_int,
         0 // Неясно, что такое
+      )
+    };
+    return self.error().check(res);
+  }
+  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_longlong, dty: Type) -> Result<()> {
+    let mut handle = ptr::null_mut();
+    let res = unsafe {
+      OCIBindByName2(
+        self.native as *mut OCIStmt,
+        &mut handle,
+        self.error().native_mut(),
+        placeholder.as_ptr() as *const c_uchar, placeholder.len() as c_int,
+        // Указатель на данные для размещения результата, его размер и тип
+        value, size, dty as c_ushort,
+        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
+        ptr::null_mut(),// Массив длин для каждого значения
+        ptr::null_mut(),// Массив для column-level return codes
+
+        0, ptr::null_mut(), 0
       )
     };
     return self.error().check(res);
