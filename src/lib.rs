@@ -1,5 +1,7 @@
 #![feature(associated_consts)]
 #![allow(non_snake_case)]
+// Для типажей числовых типов, чтобы можно было реализовать управление атрибутами в обобщенном виде
+extern crate num_integer;
 
 mod ffi;
 pub use ffi::*;

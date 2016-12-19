@@ -18,6 +18,7 @@ mod native;
 pub use self::types::{CreateMode, AttachMode, MallocFn, ReallocFn, FreeFn};
 use self::native::*;
 use self::base::{Handle, Descriptor, Env};
+use self::base::AttrHolder;
 
 //-------------------------------------------------------------------------------------------------
 unsafe fn attr_get<T: AttrHandle>(handle: *const T, value: *mut c_void, size: &mut c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
@@ -304,11 +305,11 @@ pub struct Column {
 
 impl Column {
   fn new(pos: usize, desc: Descriptor<OCIParam>, err: &Handle<OCIError>) -> Result<Self> {
-    let type_ = try!(desc.get_c_uint(types::Attr::DataType, err));
+    let type_: c_ushort = try!(desc.get_(types::Attr::DataType, err));
     let name  = try!(desc.get_str(types::Attr::Name, err));
-    //let ischar= try!(desc.get_c_uint(types::Attr::CharUsed, err));
-    //let size  = try!(desc.get_c_uint(types::Attr::CharSize, err));
-    let size  = try!(desc.get_c_uint(types::Attr::DataSize, err));
+    //let ischar= try!(desc.get_(types::Attr::CharUsed, err));
+    //let size : c_uint  = try!(desc.get_(types::Attr::CharSize, err));
+    let size : c_uint = try!(desc.get_(types::Attr::DataSize, err));
 
     Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) } })
   }
