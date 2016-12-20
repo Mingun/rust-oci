@@ -3,6 +3,7 @@ use std::os::raw::{c_int, c_uint};
 use super::Result;
 use super::ConnectParams;
 
+mod attr;
 mod base;
 mod stmt;
 mod types;
