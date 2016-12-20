@@ -32,7 +32,7 @@ pub trait ParamHandle {
   const ID: Handle;
 }
 
-#[derive(Debug)] pub enum OCIDescribe {} impl HandleType for OCIDescribe { const ID: Handle = Handle::Decribe; }
+#[derive(Debug)] pub enum OCIDescribe {} impl HandleType for OCIDescribe { const ID: Handle = Handle::Describe; }
 #[derive(Debug)] pub enum OCIEnv {}
 impl ErrorHandle for OCIEnv { const ID: Handle = Handle::Env; }
 #[derive(Debug)] pub enum OCIError {}    impl HandleType for OCIError    { const ID: Handle = Handle::Error; }
@@ -54,3 +54,4 @@ pub trait DescriptorType {
 #[derive(Debug)] pub enum OCIParam {}      impl DescriptorType for OCIParam      { const ID: Descriptor = Descriptor::Param; }
 #[derive(Debug)] pub enum OCIBind {}
 #[derive(Debug)] pub enum OCIDefine {}
+#[derive(Debug)] pub enum OCIType {}

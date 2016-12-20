@@ -4,7 +4,7 @@
 //! [1]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI153
 
 use std::os::raw::{c_int, c_longlong, c_void, c_uchar, c_uint, c_ushort};
-use super::{OCIBind, OCIDefine, OCIError, OCIStmt};
+use super::{OCIBind, OCISvcCtx, OCIDefine, OCIDescribe, OCIError, OCIStmt, OCIType};
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
@@ -65,7 +65,7 @@ extern "C" {
   ///   A define handle previously allocated in a call to `OCIDefineByPos()`.
   /// - errhp (IN/OUT):
   ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
-  /// - type (IN) [optional]:
+  /// - tdo (IN) [optional]:
   ///   Points to the type descriptor object (TDO) that describes the type of the program variable.
   ///   This parameter is optional for variables of type `SQLT_REF`, and may be passed as `NULL` if
   ///   it is not being used.
@@ -88,7 +88,7 @@ extern "C" {
   ///   Points to the sizes of the indicator structure program variable. For an array, it is an array of `ub4`s.
   pub fn OCIDefineObject(defnp: *mut OCIDefine,
                          errhp: *mut OCIError,
-                         type: *const OCIType,
+                         tdo: *const OCIType,
                          pgvpp: *mut *mut c_void,
                          pvszsp: *mut c_uint,
                          indpp: *mut *mut c_void,
