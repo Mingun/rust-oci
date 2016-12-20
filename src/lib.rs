@@ -46,10 +46,14 @@ mod tests {
       dblink: args.next().unwrap_or("".into()),
       mode: AttachMode::default(),
       // Скрипт настройки на трависе добавляет пользователя, из под которого запускается с пустым паролем
-      username: args.next().unwrap_or(env::var("USER").expect("Environment variable USER not set")),
+      username: args.next().unwrap_or_else(|| env::var("USER").expect("Environment variable USER not set")),
       password: args.next().unwrap_or("".into()),
     };
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
-    let stmt = conn.prepare("select * from dual").expect("Can't prepare statement");
+    let stmt = conn.prepare("select * from dba_users").expect("Can't prepare statement");
+    let rs = stmt.query().expect("Can't execute query");
+    for col in stmt.columns().expect("Can't get select list column count") {
+      println!("param: {:?}", col);
+    }
   }
 }
