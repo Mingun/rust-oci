@@ -3,31 +3,74 @@
 //! В описании последняя строка означает тип данных для чтения/записи. Если до черты или после нее
 //! типа нет, то значит данный атрибут нельзя читать или писать соответсвенно.
 
+use std::os::raw::c_void;
+
 pub trait Attr {
-  fn id(&self) -> u32;
+  /// Возвращает уникальный идентификатор данного атрибута
+  fn id(&self) -> usize;
+  /// Возвращает размер типа данных, отводимый для этого атрибута
+  fn size(&self) -> usize;
 }
 /// Типаж, позволяющий прочитать значение атрибута.
-pub trait Read: Attr {}
-/// Типах, позволяющий прочитать значение атрибута.
-pub trait Write: Attr {}
+pub trait Read: Attr {
+  /// Возвращает указатель на начало буфера, в который можно записать значение атрибута.
+  /// Записать в буфер можно не более `size()` байт.
+  unsafe fn as_mut_ptr(&mut self) -> *mut c_void;
+}
+/// Типаж, позволяющий прочитать значение атрибута.
+pub trait Write: Attr {
+  /// Возвращает указатель на начало буфера, из которого можно прочитать значение атрибута.
+  /// Прочитать из буфера можно не более `size()` байт.
+  fn as_ptr(&self) -> *const c_void;
+}
 
 macro_rules! attr_enum {
-  ($trait_name:ident, $name:ident,
+  ($name:ident,
     $($variant:ident, $ty:ty, $id:expr),+
   ) => (
-      #[derive(Clone, Copy, Debug)]
-      #[allow(dead_code)]
-      pub enum $name {
-        $($variant($ty)),+
-      }
-      impl $crate::ffi::attr::Attr for $name {
-        fn id(&self) -> u32 {
-          match *self {
-            $($name::$variant(_) => $id),+
-          }
+    #[derive(Clone, Copy, Debug)]
+    #[allow(dead_code)]
+    pub enum $name {
+      $($variant($ty)),+
+    }
+    impl $crate::ffi::attr::Attr for $name {
+      fn id(&self) -> usize {
+        match *self {
+          $($name::$variant(_) => $id),+
         }
       }
-      impl $crate::ffi::attr::$trait_name for $name {}
+      fn size(&self) -> usize {
+        match *self {
+          $($name::$variant(_) => ::std::mem::size_of::<$ty>()),+
+        }
+      }
+    }
+  );
+}
+macro_rules! read_enum {
+  ($name:ident,
+    $($variant:ident, $ty:ty, $id:expr),+
+  ) => (
+    impl $crate::ffi::attr::Read for $name {
+      unsafe fn as_mut_ptr(&mut self) -> *mut ::std::os::raw::c_void {
+        match *self {
+          $($name::$variant(ref mut v) => (v as *mut $ty) as *mut ::std::os::raw::c_void),+
+        }
+      }
+    }
+  );
+}
+macro_rules! write_enum {
+  ($name:ident,
+    $($variant:ident, $ty:ty, $id:expr),+
+  ) => (
+    impl $crate::ffi::attr::Write for $name {
+      fn as_ptr(&self) -> *const ::std::os::raw::c_void {
+        match *self {
+          $($name::$variant(ref v) => (v as *const $ty) as *const ::std::os::raw::c_void),+
+        }
+      }
+    }
   );
 }
 /// Макрос, генерирующий модуль с указанным именем, содержащий 2 перечисления с именами `R` и `W`,
@@ -45,8 +88,11 @@ macro_rules! enum_ {
   ) => (
     pub mod $name {
       $($use_)*
-      attr_enum!(Read , R, $($rw, $trw, $id_rw),+);
-      attr_enum!(Write, W, $($rw, $trw, $id_rw),+);
+      attr_enum! (R, $($rw, $trw, $id_rw),+);
+      read_enum! (R, $($rw, $trw, $id_rw),+);
+
+      attr_enum! (W, $($rw, $trw, $id_rw),+);
+      write_enum!(W, $($rw, $trw, $id_rw),+);
     }
   );
   // Сначала на чтение, потом на запись
@@ -58,8 +104,11 @@ macro_rules! enum_ {
   ) => (
     pub mod $name {
       $($use_)*
-      attr_enum!(Read , R, $($r, $tr, $id_r),+);
-      attr_enum!(Write, W, $($w, $tw, $id_w),+);
+      attr_enum! (R, $($r, $tr, $id_r),+);
+      read_enum! (R, $($r, $tr, $id_r),+);
+
+      attr_enum! (W, $($w, $tw, $id_w),+);
+      write_enum!(W, $($w, $tw, $id_w),+);
     }
   );
 }
