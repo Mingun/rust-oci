@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::fmt;
-use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ushort};
+use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint};
 use std::marker::PhantomData;
 use std::mem;
 use std::ptr;
@@ -151,10 +151,13 @@ impl<T: HandleType> Handle<T> {
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделеное под них место
       )
     };
-    return match res {
-      0 => Ok(Handle { native: handle as *mut T }),
+    Self::from_ptr(res, handle as *mut T, err)
+  }
+  pub fn from_ptr<E: ErrorHandle>(res: c_int, native: *mut T, err: *mut E) -> Result<Handle<T>> {
+    match res {
+      0 => Ok(Handle { native: native }),
       e => Err(decode_error(err, e)),
-    };
+    }
   }
   pub fn native_mut(&self) -> *mut T {
     self.native

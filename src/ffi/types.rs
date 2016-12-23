@@ -454,6 +454,27 @@ pub enum FetchMode {
 impl Default for FetchMode {
   fn default() -> Self { FetchMode::Default }
 }
+/// Определяет способ связывания данных для выражения.
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum DefineMode {
+  /// This is the default mode.
+  Default      = 0,
+  /// For applications requiring dynamically allocated data at the time of fetch, this mode must be used. You can define a callback
+  /// using the `OCIDefineDynamic()` call. The `value_sz` parameter defines the maximum size of the data that is to be provided at
+  /// run time. When the client library needs a buffer to return the fetched data, the callback is invoked to provide a runtime
+  /// buffer into which a piece or all the data is returned.
+  DynamicFetch = 1 << 1,
+  /// Soft define mode. This mode increases the performance of the call. If this is the first define, or some input parameter such
+  /// as `dty` or `value_sz` is changed from the previous define, this mode is ignored. Unexpected behavior results if an invalid
+  /// define handle is passed. An error is returned if the statement is not executed.
+  Soft         = 1 << 7,
+  ///  Define noncontiguous addresses of data. The `valuep` parameter must be of the type `OCIIOV *`.
+  IOV          = 1 << 9,
+}
+impl Default for DefineMode {
+  fn default() -> Self { DefineMode::Default }
+}
 /// Возможные типы данных базы данных
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]

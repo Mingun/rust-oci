@@ -43,6 +43,8 @@ impl ErrorHandle for OCIError { const ID: Handle = Handle::Error; }
 #[derive(Debug)] pub enum OCIStmt {}
 impl AttrHandle  for OCIStmt { const ID: Handle = Handle::Stmt; }
 impl ParamHandle for OCIStmt { const ID: Handle = Handle::Stmt; }
+#[derive(Debug)] pub enum OCIBind {}     impl HandleType for OCIBind     { const ID: Handle = Handle::Bind; }
+#[derive(Debug)] pub enum OCIDefine {}   impl HandleType for OCIDefine   { const ID: Handle = Handle::Define; }
 
 /// Тип, реализующий данный типаж, может быть передан в функцию `OCIDescriptorAlloc` для создания дескриптора.
 /// Ассоциированная константа `ID` указывает тип дескриптора, который будет передан в функцию.
@@ -52,6 +54,4 @@ pub trait DescriptorType {
 #[derive(Debug)] pub enum OCILobLocator {} impl DescriptorType for OCILobLocator { const ID: Descriptor = Descriptor::Lob; }
 #[derive(Debug)] pub enum OCISnapshot {}   impl DescriptorType for OCISnapshot   { const ID: Descriptor = Descriptor::Snapshot; }
 #[derive(Debug)] pub enum OCIParam {}      impl DescriptorType for OCIParam      { const ID: Descriptor = Descriptor::Param; }
-#[derive(Debug)] pub enum OCIBind {}
-#[derive(Debug)] pub enum OCIDefine {}
 #[derive(Debug)] pub enum OCIType {}

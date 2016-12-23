@@ -8,7 +8,7 @@ use super::base::{Descriptor, Handle};
 use super::base::AttrHolder;
 use super::native::*;
 use super::types::Attr;
-use super::types::{Type, CachingMode, ExecuteMode, FetchMode, Syntax};
+use super::types::{DefineMode, Type, CachingMode, ExecuteMode, FetchMode, Syntax};
 use super::Connection;
 
 //-------------------------------------------------------------------------------------------------
@@ -106,15 +106,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     };
     return self.error().check(res);
   }
-  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_longlong, dty: Type) -> Result<()> {
+  fn bind_by_pos(&self, pos: c_uint, value: *mut c_void, size: c_int, dty: Type) -> Result<Handle<OCIBind>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
-      OCIBindByName2(
+      OCIBindByPos(
         self.native as *mut OCIStmt,
         &mut handle,
         self.error().native_mut(),
-        placeholder.as_ptr() as *const c_uchar, placeholder.len() as c_int,
-        // Указатель на данные для размещения результата, его размер и тип
+        pos,
+        // Указатель на данные для извлечения результата, его размер и тип
         value, size, dty as c_ushort,
         ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
@@ -123,7 +123,59 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         0, ptr::null_mut(), 0
       )
     };
-    return self.error().check(res);
+
+    Handle::from_ptr(res, handle, self.error().native_mut())
+  }
+  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_int, dty: Type) -> Result<Handle<OCIBind>> {
+    let mut handle = ptr::null_mut();
+    let res = unsafe {
+      OCIBindByName(
+        self.native as *mut OCIStmt,
+        &mut handle,
+        self.error().native_mut(),
+        placeholder.as_ptr() as *const c_uchar, placeholder.len() as c_int,
+        // Указатель на данные для извлечения результата, его размер и тип
+        value, size, dty as c_ushort,
+        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
+        ptr::null_mut(),// Массив длин для каждого значения
+        ptr::null_mut(),// Массив для column-level return codes
+
+        0, ptr::null_mut(), 0
+      )
+    };
+
+    Handle::from_ptr(res, handle, self.error().native_mut())
+  }
+  /// Ассоциирует с выражением адреса буферов, в которые извлечь данные.
+  ///
+  /// # Параметры
+  /// - pos:
+  ///   Порядковый момер параметра в запросе (нумерация с 0)
+  /// - buf:
+  ///   Буфер, в который будет записана выходная информация.
+  /// - size:
+  ///   Размер буфера в байтах
+  /// - dty:
+  ///   Тип данных, которые нужно извлечь
+  fn define(&self, pos: c_uint, buf: *mut c_void, size: c_int, dty: Type, mode: DefineMode) -> Result<Handle<OCIDefine>> {
+    let mut handle = ptr::null_mut();
+    let res = unsafe {
+      OCIDefineByPos(
+        self.native as *mut OCIStmt,
+        &mut handle,
+        self.error().native_mut(),
+        // В API оракла нумерация с 1, мы же придерживемся традиционной с 0
+        pos + 1,
+        // Указатель на данные для размещения результата, его размер и тип
+        buf, size, dty as c_ushort,
+        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
+        ptr::null_mut(),// Массив длин для каждого значения, которое извлекли из базы
+        ptr::null_mut(),// Массив для column-level return codes
+        mode as c_uint
+      )
+    };
+
+    Handle::from_ptr(res, handle, self.error().native_mut())
   }
   fn param_count(&self) -> Result<c_uint> {
     self.get_(Attr::ParamCount, self.error())
