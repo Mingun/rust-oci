@@ -1,8 +1,9 @@
 
+use std::convert::{From, Into};
 use std::mem;
-use std::os::raw::{c_longlong, c_int, c_void, c_uchar, c_uint, c_ushort};
+use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
-
+use std::slice;
 use super::super::Result;
 use super::base::{Descriptor, Handle};
 use super::base::AttrHolder;
@@ -151,31 +152,33 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// # Параметры
   /// - pos:
   ///   Порядковый момер параметра в запросе (нумерация с 0)
-  /// - buf:
-  ///   Буфер, в который будет записана выходная информация.
-  /// - size:
-  ///   Размер буфера в байтах
   /// - dty:
   ///   Тип данных, которые нужно извлечь
-  fn define(&self, pos: c_uint, buf: *mut c_void, size: c_int, dty: Type, mode: DefineMode) -> Result<Handle<OCIDefine>> {
-    let mut handle = ptr::null_mut();
+  /// - buf:
+  ///   Буфер, в который будет записана выходная информация.
+  /// - ind:
+  ///   Переменная, в которую будет записан признак того, что в столбце содержится `NULL`.
+  /// - out_size:
+  ///   Количество байт, записанное в буфер. Не превышает его длину
+  fn define(&self, pos: usize, dty: Type, buf: &mut Storage, mode: DefineMode) -> Result<()> {
     let res = unsafe {
       OCIDefineByPos(
         self.native as *mut OCIStmt,
-        &mut handle,
+        //TODO: Чтобы управлять временем жизни хендла, нужно передать корректный хендл, но тогда его придется
+        // самому закрывать. Пока нам это не нужно
+        &mut ptr::null_mut(),
         self.error().native_mut(),
         // В API оракла нумерация с 1, мы же придерживемся традиционной с 0
-        pos + 1,
+        (pos + 1) as c_uint,
         // Указатель на данные для размещения результата, его размер и тип
-        buf, size, dty as c_ushort,
-        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
-        ptr::null_mut(),// Массив длин для каждого значения, которое извлекли из базы
-        ptr::null_mut(),// Массив для column-level return codes
+        buf.ptr as *mut c_void, buf.capacity as c_int, dty as c_ushort,
+        (&mut buf.is_null as *mut c_short) as *mut c_void,// Массив индикаторов (null/не null)
+        &mut buf.size as *mut c_ushort,// Массив длин для каждого значения, которое извлекли из базы
+        &mut buf.ret_code as *mut c_ushort,// Массив для column-level return codes
         mode as c_uint
       )
     };
-
-    Handle::from_ptr(res, handle, self.error().native_mut())
+    self.error().check(res)
   }
   fn param_count(&self) -> Result<c_uint> {
     self.get_(Attr::ParamCount, self.error())
@@ -192,8 +195,10 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     }
     Ok(vec)
   }
-  pub fn query(&self) -> Result<()> {
-    self.execute(0, 0, Default::default())
+  pub fn query(&self) -> Result<RowSet> {
+    try!(self.execute(0, 0, Default::default()));
+
+    Ok(RowSet { stmt: &self })
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
@@ -237,3 +242,90 @@ pub trait StatementPrivate {
   }
 }
 impl<'conn, 'key> StatementPrivate for Statement<'conn, 'key> {}
+
+/// Хранилище буферов для биндинга результатов, извлекаемых из базы, для одной колонки
+#[derive(Debug)]
+struct Storage {
+    ptr: *mut u8,
+    capacity: usize,
+    size: c_ushort,
+    /// Возможные значения:
+    /// * `-2`  The length of the item is greater than the length of the output variable; the item has been truncated. Additionally,
+    ///         the original length is longer than the maximum data length that can be returned in the sb2 indicator variable.
+    /// * `-1`  The selected value is null, and the value of the output variable is unchanged.
+    /// * `0`   Oracle Database assigned an intact value to the host variable.
+    /// * `>0`  The length of the item is greater than the length of the output variable; the item has been truncated. The positive
+    ///         value returned in the indicator variable is the actual length before truncation.
+    is_null: c_short,
+    ret_code: c_ushort,
+}
+impl Storage {
+  fn to_vec(&self) -> Vec<u8> {
+    unsafe { Vec::from_raw_parts(self.ptr, self.size as usize, self.capacity) }
+  }
+  fn as_slice(&self) -> Option<&[u8]> {
+    match self.is_null {
+      0 => Some(unsafe { slice::from_raw_parts(self.ptr, self.size as usize) }),
+      _ => None
+    }
+  }
+}
+impl From<Vec<u8>> for Storage {
+    fn from(mut backend: Vec<u8>) -> Self {
+        let res = Storage { ptr: backend.as_mut_ptr(), size: 0, capacity: backend.capacity(), is_null: 0, ret_code: 0 };
+        // Вектор уходит в небытие, чтобы он не забрал память с собой, забываем его
+        mem::forget(backend);
+        res
+    }
+}
+impl Into<Option<Vec<u8>>> for Storage {
+    fn into(self) -> Option<Vec<u8>> {
+      match self.is_null {
+        0 => Some(self.to_vec()),
+        _ => None
+      }
+    }
+}
+impl Drop for Storage {
+  fn drop(&mut self) {
+    // Освобождаем память деструктором вектора, ведь память была выделена его конструктором
+    drop(self.to_vec());
+    self.ptr = ptr::null_mut();
+    self.capacity = 0;
+    self.size = 0;
+    self.is_null = 0;
+    self.ret_code = 0;
+  }
+}
+#[derive(Debug)]
+pub struct Row {
+  /// Массив данных для каждой колонки.
+  data: Vec<Storage>,
+}
+impl Row {
+  fn new(stmt: &Statement) -> Result<Self> {
+    let columns = try!(stmt.columns());
+    let mut data: Vec<Storage> = Vec::with_capacity(columns.len());
+
+    for c in columns {
+      data.push(Vec::with_capacity(c.size).into());
+      try!(stmt.define(c.pos, c.type_, &mut data.last_mut().unwrap(), Default::default()));
+    }
+
+    Ok(Row { data: data })
+  }
+}
+#[derive(Debug)]
+pub struct RowSet<'s> {
+  stmt: &'s Statement<'s, 's>,
+}
+
+impl<'s> Iterator for RowSet<'s> {
+  type Item = Row;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let r = Row::new(self.stmt).expect("Row::new failed");
+    self.stmt.fetch(1, Default::default(), 0).expect("`fetch` failed");
+    Some(r)
+  }
+}

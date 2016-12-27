@@ -55,5 +55,9 @@ mod tests {
     for col in stmt.columns().expect("Can't get select list column count") {
       println!("param: {:?}", col);
     }
+    println!("Now values:");
+    for d in rs {
+      println!("value: {:?}", d);
+    }
   }
 }
