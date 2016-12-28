@@ -3,26 +3,14 @@
 // Для типажей числовых типов, чтобы можно было реализовать управление атрибутами в обобщенном виде
 extern crate num_integer;
 
+pub mod error;
 mod ffi;
 pub use ffi::*;
 
-#[derive(Debug)]
-pub struct Error {
-  /// Результат вызова функции, которая вернула ошибку.
-  pub result: isize,
-  /// Код ошибки оракла, `ORA-xxxxx`.
-  pub code: isize,
-  /// Сообщение оракла об ошибке, полученной функцией `OCIErrorGet`.
-  pub message: String,
-}
-impl Error {
-  fn unknown(result: isize) -> Self {
-    Error { result: result, code: 0, message: String::new() }
-  }
-}
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = std::result::Result<T, error::Error>;
 
 /// Параметры подключения к базе данных
+#[derive(Debug)]
 pub struct ConnectParams {
   pub dblink: String,
   pub mode: AttachMode,
@@ -42,6 +30,8 @@ mod tests {
 
     let mut args = env::args();
     let path = args.next().unwrap();
+    let test_name = args.next();
+
     let params = ConnectParams {
       dblink: args.next().unwrap_or("".into()),
       mode: AttachMode::default(),
@@ -49,15 +39,17 @@ mod tests {
       username: args.next().unwrap_or_else(|| env::var("USER").expect("Environment variable USER not set")),
       password: args.next().unwrap_or("".into()),
     };
+    println!("params: {:?}", params);
+
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
     let stmt = conn.prepare("select * from dba_users").expect("Can't prepare statement");
     let rs = stmt.query().expect("Can't execute query");
     for col in stmt.columns().expect("Can't get select list column count") {
-      println!("param: {:?}", col);
+      println!("col: {:?}", col);
     }
     println!("Now values:");
-    for d in rs {
-      println!("value: {:?}", d);
+    for row in rs {
+      println!("row: {:?}", row);
     }
   }
 }

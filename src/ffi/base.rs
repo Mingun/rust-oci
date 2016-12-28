@@ -13,7 +13,7 @@ use super::native::{OCIError, OCIEnv};
 use super::native::{OCIHandleAlloc, OCIHandleFree, OCIDescriptorAlloc, OCIDescriptorFree, OCIEnvNlsCreate, OCITerminate, OCIAttrGet, OCIAttrSet, OCIErrorGet};
 use super::Environment;
 use super::types;
-use super::super::Error;
+use super::super::error::{DbError, Error};
 use super::super::Result;
 
 //-------------------------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_in
     OCIErrorGet(
       handle as *mut c_void,
       error_no,
-      0 as *mut c_uchar,// Устаревший с версии 8.x параметр, не используется
+      ptr::null_mut(),// Устаревший с версии 8.x параметр, не используется
       &mut code,
       buf.as_mut_ptr() as *mut c_uchar,
       buf.capacity() as c_uint,
@@ -53,14 +53,31 @@ fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_in
 
   (res, code, String::from_utf8(buf).expect("Invalid UTF-8 from OCIErrorGet"))
 }
-fn decode_error<T: ErrorHandle>(handle: *mut T, result: c_int) -> Error {
-  let (_, code, msg) = decode_error_piece(handle, 1);
-  Error { result: result as isize, code: code as isize, message: msg }
+fn decode_error<T: ErrorHandle>(handle: Option<*mut T>, result: c_int) -> DbError {
+  match result {
+    // Относительный успех
+    0 => unreachable!(),// Сюда не должны попадать
+    1 => DbError::Info,//TODO: получить диагностическую информацию
+    99 => DbError::NeedData,
+    100 => DbError::NoData,
+
+    // Ошибки
+    -1 => {
+      let (_, code, msg) = match handle {
+        None => (0, 0, String::new()),
+        Some(h) => decode_error_piece(h, 1),
+      };
+      DbError::Fault { code: code as isize, message: msg }
+    },
+    -2 => DbError::InvalidHandle,
+    -3123 => DbError::StillExecuting,
+    e => DbError::Unknown(e as isize),
+  }
 }
 fn check(native: c_int) -> Result<()> {
   return match native {
     0 => Ok(()),
-    e => Err(Error::unknown(e as isize))
+    e => Err(Error::Db(DbError::Unknown(e as isize)))
   };
 }
 //-------------------------------------------------------------------------------------------------
@@ -156,7 +173,7 @@ impl<T: HandleType> Handle<T> {
   pub fn from_ptr<E: ErrorHandle>(res: c_int, native: *mut T, err: *mut E) -> Result<Handle<T>> {
     match res {
       0 => Ok(Handle { native: native }),
-      e => Err(decode_error(err, e)),
+      e => Err(Error::Db(decode_error(Some(err), e))),
     }
   }
   pub fn native_mut(&self) -> *mut T {
@@ -192,7 +209,7 @@ impl<T: HandleType> AttrHolder<T> for Handle<T> {
 impl Handle<OCIError> {
   /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
   pub fn decode(&self, result: c_int) -> Error {
-    decode_error(self.native, result)
+    Error::Db(decode_error(Some(self.native), result))
   }
   pub fn check(&self, result: c_int) -> Result<()> {
     match result {
@@ -278,7 +295,7 @@ impl<'e> Env<'e> {
     return match res {
       0 => Ok(Env { native: handle, mode: mode, phantom: PhantomData }),
       // Ошибки создания окружения никуда не записываются, т.к. им просто некуда еще записываться
-      e => Err(Error::unknown(e as isize))
+      e => Err(Error::Db(DbError::Unknown(e as isize)))
     };
   }
   /// Создает новый хендл в указанном окружении запрашиваемого типа
