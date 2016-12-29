@@ -51,6 +51,15 @@ impl Column {
 
     Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) }, precision: prec as usize })
   }
+  /// Для биндинга значений через `OCIBindByPos`, `OCIBindByName` и `OCIDefineByPos` для некоторых типов
+  /// столбцов необходимо передавать не тот тип, что в столбце записан, а другой, в частности, вместо
+  ///  `SQLT_NUM` требуется передавать `SQLT_VNU`.
+  fn bind_type(&self) -> Type {
+    match self.type_ {
+      Type::NUM => Type::VNU,
+      t => t,
+    }
+  }
 }
 //-------------------------------------------------------------------------------------------------
 #[derive(Debug)]
@@ -321,13 +330,13 @@ impl Row {
 
     for c in columns {
       data.push(Vec::with_capacity(c.size).into());
-      try!(stmt.define(c.pos, c.type_, &mut data.last_mut().unwrap(), Default::default()));
+      try!(stmt.define(c.pos, c.bind_type(), &mut data.last_mut().unwrap(), Default::default()));
     }
 
     Ok(Row { data: data })
   }
   pub fn get<'a, T: FromDB + ?Sized>(&'a self, col: &Column) -> Result<Option<&'a T>> {
-    self.data[col.pos].to(col.type_)
+    self.data[col.pos].to(col.bind_type())
   }
 }
 #[derive(Debug)]
