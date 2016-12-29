@@ -4,12 +4,13 @@ use std::mem;
 use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 use std::slice;
-use super::super::Result;
+use Result;
+use types::{FromDB, Type};
 use super::base::{Descriptor, Handle};
 use super::base::AttrHolder;
 use super::native::*;
 use super::types::Attr;
-use super::types::{DefineMode, Type, CachingMode, ExecuteMode, FetchMode, Syntax};
+use super::types::{DefineMode, CachingMode, ExecuteMode, FetchMode, Syntax};
 use super::Connection;
 
 //-------------------------------------------------------------------------------------------------
@@ -36,6 +37,7 @@ pub struct Column {
   pub name: String,
   /// Ширина колонки в байтах
   pub size: usize,
+  pub precision: usize,
 }
 
 impl Column {
@@ -45,8 +47,9 @@ impl Column {
     //let ischar= try!(desc.get_(Attr::CharUsed, err));
     //let size : c_uint  = try!(desc.get_(Attr::CharSize, err));
     let size : c_uint = try!(desc.get_(Attr::DataSize, err));
+    let prec : c_uint = try!(desc.get_(Attr::Precision, err));
 
-    Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) } })
+    Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) }, precision: prec as usize })
   }
 }
 //-------------------------------------------------------------------------------------------------
@@ -260,31 +263,40 @@ struct Storage {
     ret_code: c_ushort,
 }
 impl Storage {
+  #[inline]
   fn to_vec(&self) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(self.ptr, self.size as usize, self.capacity) }
   }
+  #[inline]
   fn as_slice(&self) -> Option<&[u8]> {
     match self.is_null {
       0 => Some(unsafe { slice::from_raw_parts(self.ptr, self.size as usize) }),
       _ => None
     }
   }
+  #[inline]
+  fn to<T: FromDB + ?Sized>(&self, ty: Type) -> Result<Option<&T>> {
+    match self.as_slice() {
+      Some(ref slice) => T::from_db(ty, slice).map(|r| Some(r)),
+      None => Ok(None),
+    }
+  }
 }
 impl From<Vec<u8>> for Storage {
-    fn from(mut backend: Vec<u8>) -> Self {
-        let res = Storage { ptr: backend.as_mut_ptr(), size: 0, capacity: backend.capacity(), is_null: 0, ret_code: 0 };
-        // Вектор уходит в небытие, чтобы он не забрал память с собой, забываем его
-        mem::forget(backend);
-        res
-    }
+  fn from(mut backend: Vec<u8>) -> Self {
+    let res = Storage { ptr: backend.as_mut_ptr(), size: 0, capacity: backend.capacity(), is_null: 0, ret_code: 0 };
+    // Вектор уходит в небытие, чтобы он не забрал память с собой, забываем его
+    mem::forget(backend);
+    res
+  }
 }
 impl Into<Option<Vec<u8>>> for Storage {
-    fn into(self) -> Option<Vec<u8>> {
-      match self.is_null {
-        0 => Some(self.to_vec()),
-        _ => None
-      }
+  fn into(self) -> Option<Vec<u8>> {
+    match self.is_null {
+      0 => Some(self.to_vec()),
+      _ => None
     }
+  }
 }
 impl Drop for Storage {
   fn drop(&mut self) {
@@ -313,6 +325,9 @@ impl Row {
     }
 
     Ok(Row { data: data })
+  }
+  pub fn get<'a, T: FromDB + ?Sized>(&'a self, col: &Column) -> Result<Option<&'a T>> {
+    self.data[col.pos].to(col.type_)
   }
 }
 #[derive(Debug)]

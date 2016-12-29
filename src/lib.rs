@@ -4,6 +4,7 @@
 extern crate num_integer;
 
 pub mod error;
+pub mod types;
 mod ffi;
 pub use ffi::*;
 
@@ -44,12 +45,14 @@ mod tests {
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
     let stmt = conn.prepare("select * from dba_users").expect("Can't prepare statement");
     let rs = stmt.query().expect("Can't execute query");
-    for col in stmt.columns().expect("Can't get select list column count") {
+    let columns = stmt.columns().expect("Can't get select list column count");
+    for col in &columns {
       println!("col: {:?}", col);
     }
     println!("Now values:");
     for row in rs {
-      println!("row: {:?}", row);
+      let user: Result<Option<&str>> = row.get(&columns[0]);
+      println!("row: user: {:?}", user);
     }
   }
 }
