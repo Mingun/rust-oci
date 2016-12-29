@@ -475,3 +475,10 @@ pub enum DefineMode {
 impl Default for DefineMode {
   fn default() -> Self { DefineMode::Default }
 }
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum NumberFlag {
+  Unsigned = 0,
+  Signed = 2,
+}

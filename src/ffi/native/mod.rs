@@ -5,6 +5,7 @@ mod conn;
 mod hndl;
 mod stmt;
 mod lob;
+mod num;
 
 use super::types::Handle;
 use super::types::Descriptor;
@@ -13,6 +14,7 @@ pub use self::conn::*;
 pub use self::hndl::*;
 pub use self::stmt::*;
 pub use self::lob::*;
+pub use self::num::*;
 
 /// Тип, реализующий данный типаж, может быть передан в функцию `OCIHandleAlloc` для создания хендла.
 /// Ассоциированная константа `ID` указывает тип хендла, который будет передан в функцию.
