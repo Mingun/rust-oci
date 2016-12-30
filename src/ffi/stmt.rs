@@ -30,12 +30,14 @@ fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCI
 /// Структура для представления колонки базы данных из списка выбора
 #[derive(Debug)]
 pub struct Column {
-  /// Номер столбца
+  /// Порядковый номер колонки в списке выбора (нумерация с 0)
   pub pos: usize,
+  /// Тип колонки в базе данных.
   pub type_: Type,
-  /// Название колонки в базе данных
+  /// Название колонки в списке выбора (т.е. либо название колонки в базе дынных, либо ее псевдоним).
   pub name: String,
-  /// Ширина колонки в байтах
+  /// Ширина колонки в байтах. Показывает, сколько байт максимум может занимать значение колонки,
+  /// а не занимаемый реально данными объем.
   pub size: usize,
   pub precision: usize,
 }
@@ -77,7 +79,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   }
   /// # Параметры
   /// - count:
-  ///   * Для `select` выражений это количество строк, которые нужно извлечть prefetch-ем, уже в момент выполнения
+  ///   * Для `select` выражений это количество строк, которые нужно извлечь prefetch-ем, уже в момент выполнения
   ///     запроса (т.е. сервер БД вернет их, не дожидаясь вызова `OCIStmtFetch2`). Если prefetch не нужен, то должно
   ///     быть равно `0`.
   ///   * Для не-`select` выражений это номер последнего элемента в буфере данных со связанными параметрами, которые
@@ -163,7 +165,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///
   /// # Параметры
   /// - pos:
-  ///   Порядковый момер параметра в запросе (нумерация с 0)
+  ///   Порядковый номер параметра в запросе (нумерация с 0)
   /// - dty:
   ///   Тип данных, которые нужно извлечь
   /// - buf:
@@ -180,7 +182,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         // самому закрывать. Пока нам это не нужно
         &mut ptr::null_mut(),
         self.error().native_mut(),
-        // В API оракла нумерация с 1, мы же придерживемся традиционной с 0
+        // В API оракла нумерация с 1, мы же придерживаемся традиционной с 0
         (pos + 1) as c_uint,
         // Указатель на данные для размещения результата, его размер и тип
         buf.ptr as *mut c_void, buf.capacity as c_int, dty as c_ushort,
@@ -258,24 +260,29 @@ impl<'conn, 'key> StatementPrivate for Statement<'conn, 'key> {}
 /// Хранилище буферов для биндинга результатов, извлекаемых из базы, для одной колонки
 #[derive(Debug)]
 struct Storage {
-    ptr: *mut u8,
-    capacity: usize,
-    size: c_ushort,
-    /// Возможные значения:
-    /// * `-2`  The length of the item is greater than the length of the output variable; the item has been truncated. Additionally,
-    ///         the original length is longer than the maximum data length that can be returned in the sb2 indicator variable.
-    /// * `-1`  The selected value is null, and the value of the output variable is unchanged.
-    /// * `0`   Oracle Database assigned an intact value to the host variable.
-    /// * `>0`  The length of the item is greater than the length of the output variable; the item has been truncated. The positive
-    ///         value returned in the indicator variable is the actual length before truncation.
-    is_null: c_short,
-    ret_code: c_ushort,
+  /// Указатель на начало памяти, где будут храниться данные
+  ptr: *mut u8,
+  /// Количество байт, выделенной по указателю `ptr`.
+  capacity: usize,
+  /// Количество байт, реально используемое для хранения данных.
+  size: c_ushort,
+  /// Возможные значения:
+  /// * `-2`  The length of the item is greater than the length of the output variable; the item has been truncated. Additionally,
+  ///         the original length is longer than the maximum data length that can be returned in the sb2 indicator variable.
+  /// * `-1`  The selected value is null, and the value of the output variable is unchanged.
+  /// * `0`   Oracle Database assigned an intact value to the host variable.
+  /// * `>0`  The length of the item is greater than the length of the output variable; the item has been truncated. The positive
+  ///         value returned in the indicator variable is the actual length before truncation.
+  is_null: c_short,
+  ret_code: c_ushort,
 }
 impl Storage {
   #[inline]
   fn to_vec(&self) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(self.ptr, self.size as usize, self.capacity) }
   }
+  /// Возвращает представление данного хранилища в виде среза из массива байт, если
+  /// в хранилище есть данные и `None`, если в хранилище хранится `NULL` значение.
   #[inline]
   fn as_slice(&self) -> Option<&[u8]> {
     match self.is_null {
@@ -283,6 +290,7 @@ impl Storage {
       _ => None
     }
   }
+  /// Представляет содержимое данного хранилища в виде объекта указанного типа
   #[inline]
   fn to<T: FromDB + ?Sized>(&self, ty: Type) -> Result<Option<&T>> {
     match self.as_slice() {
@@ -318,6 +326,7 @@ impl Drop for Storage {
     self.ret_code = 0;
   }
 }
+/// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки
 #[derive(Debug)]
 pub struct Row {
   /// Массив данных для каждой колонки.

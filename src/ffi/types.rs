@@ -206,7 +206,7 @@ pub enum Handle {
   //Event = 29,
 }
 
-/// Виды дескрипторов, которые можно создать фунцией `OCIDescriptorAlloc`
+/// Виды дескрипторов, которые можно создать функцией `OCIDescriptorAlloc`
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub enum Descriptor {
@@ -366,7 +366,7 @@ pub enum CachingMode {
 impl Default for CachingMode {
   fn default() -> Self { CachingMode::Default }
 }
-/// Коды ошибок, которые могут вырнуть функции оракла (не путать с кодами ошибок оракла `ORA-xxxxx`)
+/// Коды ошибок, которые могут вернуть функции оракла (не путать с кодами ошибок оракла `ORA-xxxxx`)
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub enum ErrorCode {

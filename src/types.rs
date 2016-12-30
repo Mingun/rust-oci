@@ -118,12 +118,13 @@ pub enum Type {
   BOL    = 252,
 }
 
+/// Преобразует тип базы данных в тип Rust, для которого реализован данный типаж.
 pub trait FromDB {
   fn from_db(ty: Type, raw: &[u8]) -> Result<&Self>;
 }
 
 macro_rules! simple_from {
-  ($ty:ident, $($types:ident),+) => (
+  ($ty:ty, $($types:ident),+) => (
     impl FromDB for $ty {
       fn from_db(ty: Type, raw: &[u8]) -> Result<&Self> {
         match ty {

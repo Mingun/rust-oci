@@ -127,14 +127,14 @@ extern "C" {
   ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
   /// - mode:
   ///   Specifies the various modes of operation. The only valid mode is `OCI_DEFAULT` for the default mode.
-  pub fn OCIServerDetach(srvhp: *mut OCIServer,
+  pub fn OCIServerDetach(srvhp: *mut OCIServer,// результат
                          errhp: *mut OCIError,
                          mode: c_uint) -> c_int;
 
   /// Creates a user session and begins a user session for a given server.
   pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
                          errhp: *mut OCIError,
-                         usrhp: *mut OCISession,
+                         usrhp: *mut OCISession,// результат
                          credt: c_uint,
                          mode: c_uint) -> c_int;
   /// Terminates a user session context created by `OCISessionBegin()`
