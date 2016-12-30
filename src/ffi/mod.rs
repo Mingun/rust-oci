@@ -1,7 +1,7 @@
 
 use std::os::raw::{c_int, c_uint};
-use super::Result;
-use super::ConnectParams;
+use std::ptr;
+use {ConnectParams, Credentials, Result};
 
 mod attr;
 mod base;
@@ -36,8 +36,7 @@ impl<'e> Environment<'e> {
   }
   /// Осуществляет подключение к базе данных с указанными параметрами
   pub fn connect<P: Into<ConnectParams>>(&self, params: P) -> Result<Connection> {
-    let p = params.into();
-    Connection::new(&self, &p.dblink, p.mode, &p.username, &p.password)
+    Connection::new(&self, &params.into())
   }
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.handle(self.error.native_mut())
@@ -58,12 +57,16 @@ struct Server<'env> {
   mode: types::AttachMode,
 }
 impl<'env> Server<'env> {
-  fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode) -> Result<Server<'e>> {
+  fn new<'e>(env: &'e Environment, dblink: Option<&str>, mode: types::AttachMode) -> Result<Server<'e>> {
     let server: Handle<OCIServer> = try!(env.handle());
+    let (ptr, len) = match dblink {
+      Some(db) => (db.as_ptr(), db.len()),
+      None => (ptr::null(), 0)
+    };
     let res = unsafe {
       OCIServerAttach(
         server.native_mut(), env.error.native_mut(),
-        dblink.as_ptr(), dblink.len() as c_int,
+        ptr, len as c_int,
         mode as c_uint
       )
     };
@@ -103,15 +106,26 @@ pub struct Connection<'env> {
   session: Handle<OCISession>,
 }
 impl<'env> Connection<'env> {
-  fn new<'e>(env: &'e Environment, dblink: &str, mode: types::AttachMode, username: &str, password: &str) -> Result<Connection<'e>> {
-    let server = try!(Server::new(env, dblink, mode));
+  fn new<'e>(env: &'e Environment, params: &ConnectParams) -> Result<Connection<'e>> {
     let mut context: Handle<OCISvcCtx > = try!(env.handle());
     let mut session: Handle<OCISession> = try!(env.handle());
 
-    // Ассоциируем имя пользователя и пароль с сессией
-    try!(session.set_str(username, types::Attr::Username, &env.error));
-    try!(session.set_str(password, types::Attr::Password, &env.error));
+    let (dblink, credMode) = match params.credentials {
+      Credentials::Rdbms { ref dblink, ref username, ref password } => {
+        // Ассоциируем имя пользователя и пароль с сессией.
+        // Надо отметить, что эти атрибуты сохраняются после закрытия сессии и при переподключении
+        // можно их заново не устанавливать.
+        try!(session.set_str(username, types::Attr::Username, &env.error));
+        try!(session.set_str(password, types::Attr::Password, &env.error));
 
+        // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
+        // базы данных
+        (Some(dblink.as_ref()), types::CredentialMode::Rdbms)
+      },
+      Credentials::Ext => (None, types::CredentialMode::Ext),
+    };
+
+    let server = try!(Server::new(env, dblink, params.mode));
     // Ассоциируем сервер с контекстом и осуществляем подключение
     try!(context.set_handle(&server.handle, types::Attr::Server, &env.error));
     let res = unsafe {
@@ -119,9 +133,7 @@ impl<'env> Connection<'env> {
         context.native_mut(),
         env.error.native_mut(),
         session.native_mut(),
-        // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
-        // базы данных
-        types::CredentialMode::Rdbms as c_uint,
+        credMode as c_uint,
         types::AuthMode::Default as c_uint
       )
     };
