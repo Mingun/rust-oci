@@ -4,8 +4,12 @@ use std::mem;
 use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 use std::slice;
+
 use Result;
+use error::Error::Db;
+use error::DbError::NoData;
 use types::{FromDB, Type};
+
 use super::base::{Descriptor, Handle};
 use super::base::AttrHolder;
 use super::native::*;
@@ -358,7 +362,10 @@ impl<'s> Iterator for RowSet<'s> {
 
   fn next(&mut self) -> Option<Self::Item> {
     let r = Row::new(self.stmt).expect("Row::new failed");
-    self.stmt.fetch(1, Default::default(), 0).expect("`fetch` failed");
-    Some(r)
+    match self.stmt.fetch(1, Default::default(), 0) {
+      Ok(_) => Some(r),
+      Err(Db(NoData)) => None,
+      Err(e) => panic!("`fetch` failed: {:?}", e)
+    }
   }
 }
