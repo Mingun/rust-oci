@@ -9,6 +9,7 @@ mod ffi;
 pub use ffi::*;
 
 type Result<T> = std::result::Result<T, error::Error>;
+use types::{AttachMode, AuthMode};
 
 /// Содержит учетные данные пользователя, которые должны использоваться для аутентификации в базе.
 #[derive(Clone, Debug)]
@@ -45,7 +46,7 @@ mod tests {
   use super::*;
   #[test]
   fn it_works() {
-    let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
+    let env = Environment::new(types::CreateMode::default()).expect("Can't create ORACLE environment");
 
     let mut args = env::args();
     let _ = args.next().unwrap();// Путь к исходнику, запускаемому для тестов

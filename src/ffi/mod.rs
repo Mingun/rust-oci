@@ -2,6 +2,7 @@
 use std::os::raw::{c_int, c_uint};
 use std::ptr;
 use {ConnectParams, Credentials, Result};
+use types::{AttachMode, AuthMode, CreateMode};
 
 mod attr;
 mod base;
@@ -9,7 +10,7 @@ mod stmt;
 mod types;
 mod native;
 
-pub use self::types::{CreateMode, AttachMode, AuthMode, MallocFn, ReallocFn, FreeFn};
+pub use self::types::{MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
 use self::native::*;
 use self::base::{Handle, Descriptor, Env};
@@ -28,7 +29,7 @@ pub struct Environment<'e> {
   error: Handle<OCIError>,
 }
 impl<'e> Environment<'e> {
-  pub fn new(mode: types::CreateMode) -> Result<Self> {
+  pub fn new(mode: CreateMode) -> Result<Self> {
     let env = try!(Env::new(mode));
     let err: Handle<OCIError> = try!(env.handle(env.native_mut()));
 
@@ -54,10 +55,10 @@ impl<'e> Environment<'e> {
 struct Server<'env> {
   env: &'env Environment<'env>,
   handle: Handle<OCIServer>,
-  mode: types::AttachMode,
+  mode: AttachMode,
 }
 impl<'env> Server<'env> {
-  fn new<'e>(env: &'e Environment, dblink: Option<&str>, mode: types::AttachMode) -> Result<Server<'e>> {
+  fn new<'e>(env: &'e Environment, dblink: Option<&str>, mode: AttachMode) -> Result<Server<'e>> {
     let server: Handle<OCIServer> = try!(env.handle());
     let (ptr, len) = match dblink {
       Some(db) => (db.as_ptr(), db.len()),
@@ -105,7 +106,7 @@ pub struct Connection<'env> {
   context: Handle<OCISvcCtx>,
   session: Handle<OCISession>,
   /// Режим аутетификации, который использовался при создании соединения. Необходим при закрытии
-  auth_mode: types::AuthMode,
+  auth_mode: AuthMode,
 }
 impl<'env> Connection<'env> {
   fn new<'e>(env: &'e Environment, params: &ConnectParams) -> Result<Connection<'e>> {

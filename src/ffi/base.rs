@@ -8,13 +8,15 @@ use std::ptr;
 use std::slice;
 use num_integer::Integer;
 
+use Result;
+use error::{DbError, Error};
+use types::CreateMode;
+
 use super::native::{DescriptorType, HandleType, ErrorHandle};
 use super::native::{OCIError, OCIEnv};
 use super::native::{OCIHandleAlloc, OCIHandleFree, OCIDescriptorAlloc, OCIDescriptorFree, OCIEnvNlsCreate, OCITerminate, OCIAttrGet, OCIAttrSet, OCIErrorGet};
 use super::Environment;
 use super::types;
-use super::super::error::{DbError, Error};
-use super::super::Result;
 
 //-------------------------------------------------------------------------------------------------
 /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
@@ -274,13 +276,13 @@ impl<'d, T: 'd + DescriptorType> AttrHolder<T> for Descriptor<'d, T> {
 #[derive(Debug)]
 pub struct Env<'e> {
   native: *const OCIEnv,
-  mode: types::CreateMode,
+  mode: CreateMode,
   /// Фантомные данные для статического анализа управления временем жизни окружения. Эмулирует владение
   /// указателем `native` структуры.
   phantom: PhantomData<&'e OCIEnv>,
 }
 impl<'e> Env<'e> {
-  pub fn new(mode: types::CreateMode) -> Result<Self> {
+  pub fn new(mode: CreateMode) -> Result<Self> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIEnvNlsCreate(
