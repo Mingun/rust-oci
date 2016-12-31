@@ -1,7 +1,8 @@
 
 use std::os::raw::{c_int, c_uint};
 use std::ptr;
-use {ConnectParams, Credentials, Result};
+use Result;
+use params::{ConnectParams, Credentials};
 use types::{AttachMode, AuthMode, CreateMode};
 
 mod attr;
