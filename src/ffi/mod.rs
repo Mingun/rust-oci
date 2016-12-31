@@ -9,7 +9,7 @@ mod stmt;
 mod types;
 mod native;
 
-pub use self::types::{CreateMode, AttachMode, MallocFn, ReallocFn, FreeFn};
+pub use self::types::{CreateMode, AttachMode, AuthMode, MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
 use self::native::*;
 use self::base::{Handle, Descriptor, Env};
@@ -104,14 +104,17 @@ pub struct Connection<'env> {
   server: Server<'env>,
   context: Handle<OCISvcCtx>,
   session: Handle<OCISession>,
+  /// Режим аутетификации, который использовался при создании соединения. Необходим при закрытии
+  auth_mode: types::AuthMode,
 }
 impl<'env> Connection<'env> {
   fn new<'e>(env: &'e Environment, params: &ConnectParams) -> Result<Connection<'e>> {
+    let server = try!(Server::new(env, Some(&params.dblink), params.attach_mode));
     let mut context: Handle<OCISvcCtx > = try!(env.handle());
     let mut session: Handle<OCISession> = try!(env.handle());
 
-    let (dblink, credMode) = match params.credentials {
-      Credentials::Rdbms { ref dblink, ref username, ref password } => {
+    let credMode = match params.credentials {
+      Credentials::Rdbms { ref username, ref password } => {
         // Ассоциируем имя пользователя и пароль с сессией.
         // Надо отметить, что эти атрибуты сохраняются после закрытия сессии и при переподключении
         // можно их заново не устанавливать.
@@ -120,12 +123,11 @@ impl<'env> Connection<'env> {
 
         // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
         // базы данных
-        (Some(dblink.as_ref()), types::CredentialMode::Rdbms)
+        types::CredentialMode::Rdbms
       },
-      Credentials::Ext => (None, types::CredentialMode::Ext),
+      Credentials::Ext => types::CredentialMode::Ext,
     };
 
-    let server = try!(Server::new(env, dblink, params.mode));
     // Ассоциируем сервер с контекстом и осуществляем подключение
     try!(context.set_handle(&server.handle, types::Attr::Server, &env.error));
     let res = unsafe {
@@ -134,13 +136,13 @@ impl<'env> Connection<'env> {
         env.error.native_mut(),
         session.native_mut(),
         credMode as c_uint,
-        types::AuthMode::Default as c_uint
+        params.auth_mode as c_uint
       )
     };
     try!(env.error.check(res));
     try!(context.set_handle(&session, types::Attr::Session, &env.error));
 
-    Ok(Connection { server: server, context: context, session: session })
+    Ok(Connection { server: server, context: context, session: session, auth_mode: params.auth_mode })
   }
   fn error(&self) -> &Handle<OCIError> {
     self.server.error()
@@ -157,7 +159,7 @@ impl<'env> Drop for Connection<'env> {
         self.context.native_mut(),
         self.error().native_mut(),
         self.session.native_mut(),
-        types::AuthMode::Default as c_uint
+        self.auth_mode as c_uint
       )
     };
     self.error().check(res).expect("OCISessionEnd");

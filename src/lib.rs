@@ -15,9 +15,6 @@ type Result<T> = std::result::Result<T, error::Error>;
 pub enum Credentials {
   /// База будет проводить аутентификацию по паре пользователь/пароль.
   Rdbms {
-    /// Адрес базы и указатель сервиса, к которому следует подключиться.
-    /// В случае внешней аутентификации не требуется, т.к. база всегда запущена на той же машине
-    dblink: String,
     /// Имя пользователя, под которым установить соединение к базе данных
     username: String,
     /// Пароль пользователя, под которым установить соединение к базе данных
@@ -31,9 +28,15 @@ pub enum Credentials {
 /// Параметры подключения к базе данных
 #[derive(Debug)]
 pub struct ConnectParams {
-  pub mode: AttachMode,
+  /// Адрес базы и указатель сервиса, к которому следует подключиться.
+  /// В случае внешней аутентификации не требуется, т.к. база всегда запущена на той же машине
+  pub dblink: String,
+  /// Режим создания соединений -- обычный или с использованием пула соединений.
+  pub attach_mode: AttachMode,
   /// Учетные данные, используемые для логина в базу
   pub credentials: Credentials,
+  /// Режим аутентификации, позволяющий задать дополнительные привелегии при подключении к базе данных.
+  pub auth_mode: AuthMode,
 }
 
 #[cfg(test)]
@@ -48,26 +51,27 @@ mod tests {
     let _ = args.next().unwrap();// Путь к исходнику, запускаемому для тестов
     let _ = args.next();// Имя теста. приходится передавать, если есть строка подключения к базе
 
+    let dblink = args.next().unwrap_or("".into());
     let cred = match args.next() {
-      Some(dblink) => {
+      Some(username) => {
         Credentials::Rdbms {
-          dblink: dblink,
-          // Скрипт настройки на трависе добавляет пользователя, из под которого запускается с пустым паролем
-          username: args.next().unwrap_or_else(|| env::var("USER").expect("Environment variable USER not set")),
-          password: args.next().unwrap_or("".into()),
+          username: username,
+          password: args.next().expect("Password must be set"),
         }
       },
       None => Credentials::Ext,
     };
 
     let params = ConnectParams {
-      mode: AttachMode::default(),
+      dblink: dblink,
+      attach_mode: AttachMode::default(),
       credentials: cred,
+      auth_mode: AuthMode::default(),
     };
     println!("params: {:?}", params);
 
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
-    let stmt = conn.prepare("select * from dba_users").expect("Can't prepare statement");
+    let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
     let rs = stmt.query().expect("Can't execute query");
     let columns = stmt.columns().expect("Can't get select list column count");
     for col in &columns {
