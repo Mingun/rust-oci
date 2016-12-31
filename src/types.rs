@@ -23,6 +23,7 @@ pub enum Type {
   /// (ORANET TYPE) Packed Decimal Numeric
   PDN  = 7,
   /// long
+  #[deprecated(note="Not recommented to use by Oracle, use LOB instead")]
   LNG  = 8,
   /// Variable character string
   VCS  = 9,
@@ -233,8 +234,18 @@ macro_rules! simple_from {
     }
   )
 }
-simple_from!(f32, BFLOAT);
-simple_from!(f64, BDOUBLE);
+simple_from!(f32, FLT, BFLOAT);
+simple_from!(f64, FLT, BDOUBLE);
+
+// Чтобы оракл поместил данные в буфер в этих форматах, ему нужно при define-е указать соответствующую
+// длину переменной, а сейчас там всегда указывается длина столбца. Таким образом, оракл всегда будет
+// возвращать данные в VNU формате
+simple_from!( i8, INT);
+simple_from!(i16, INT);
+simple_from!(i32, INT);
+simple_from!(i64, INT);
+
+simple_from!(u64, INT, UIN);
 
 impl FromDB for str {
   fn from_db(ty: Type, raw: &[u8]) -> Result<&Self> {
