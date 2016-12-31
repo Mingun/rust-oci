@@ -273,7 +273,6 @@ impl<'d, T: 'd + DescriptorType> AttrHolder<T> for Descriptor<'d, T> {
 
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
-#[derive(Debug)]
 pub struct Env<'e> {
   native: *const OCIEnv,
   mode: CreateMode,
@@ -317,5 +316,13 @@ impl<'e> Drop for Env<'e> {
     let res = unsafe { OCITerminate(self.mode as c_uint) };
     // Получить точную причину ошибки в этом месте нельзя, т.к. все структуры уже разрушены
     check(res).expect("OCITerminate");
+  }
+}
+impl<'e> fmt::Debug for Env<'e> {
+  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fmt.debug_tuple("Env")
+       .field(&self.native)
+       .field(&self.mode)
+       .finish()
   }
 }
