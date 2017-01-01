@@ -8,7 +8,7 @@ use std::mem::size_of;
 use super::OCIError;
 use super::super::types::NumberFlag;
 use super::super::base::Handle;
-use Result;
+use {Connection, Result};
 use types::{FromDB, Type};
 use error::Error;
 
@@ -107,14 +107,19 @@ impl OCINumber {
     }
   }
 }
+impl Default for OCINumber {
+  fn default() -> Self {
+    OCINumber([0; 22])
+  }
+}
 impl FromDB for OCINumber {
-  fn from_db(ty: Type, raw: &[u8]) -> Result<Self> {
+  fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
       Type::VNU => {
         if raw.len() != 22 {
           return Err(Error::Conversion(ty));
         }
-        let mut r = OCINumber([0; 22]);
+        let mut r = OCINumber::default();
         r.0.clone_from_slice(raw);
         Ok(r)
       },

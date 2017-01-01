@@ -391,9 +391,9 @@ impl<'d> DefineInfo<'d> {
   }
   /// Представляет содержимое данного хранилища в виде объекта указанного типа
   #[inline]
-  fn to<T: FromDB>(&self, ty: Type) -> Result<Option<T>> {
+  fn to<T: FromDB>(&self, ty: Type, conn: &Connection) -> Result<Option<T>> {
     match self.as_slice() {
-      Some(ref slice) => T::from_db(ty, slice).map(|r| Some(r)),
+      Some(ref slice) => T::from_db(ty, slice, conn).map(|r| Some(r)),
       None => Ok(None),
     }
   }
@@ -430,8 +430,8 @@ impl<'d> Row<'d> {
 
     Ok(Row { data: data })
   }
-  pub fn get<T: FromDB>(&self, col: &Column) -> Result<Option<T>> {
-    self.data[col.pos].to(col.bind_type())
+  pub fn get<T: FromDB>(&self, col: &Column, conn: &Connection) -> Result<Option<T>> {
+    self.data[col.pos].to(col.bind_type(), conn)
   }
 }
 #[derive(Debug)]
