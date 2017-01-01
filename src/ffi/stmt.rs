@@ -393,7 +393,7 @@ impl<'d> DefineInfo<'d> {
   }
   /// Представляет содержимое данного хранилища в виде объекта указанного типа
   #[inline]
-  fn to<T: FromDB + ?Sized>(&self, ty: Type) -> Result<Option<&T>> {
+  fn to<T: FromDB>(&self, ty: Type) -> Result<Option<T>> {
     match self.as_slice() {
       Some(ref slice) => T::from_db(ty, slice).map(|r| Some(r)),
       None => Ok(None),
@@ -438,7 +438,7 @@ impl<'d> Row<'d> {
 
     Ok(Row { data: data })
   }
-  pub fn get<'a, T: FromDB + ?Sized>(&'a self, col: &Column) -> Result<Option<&'a T>> {
+  pub fn get<T: FromDB>(&self, col: &Column) -> Result<Option<T>> {
     self.data[col.pos].to(col.bind_type())
   }
 }

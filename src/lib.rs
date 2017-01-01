@@ -54,7 +54,7 @@ mod tests {
     }
     println!("Now values:");
     for row in rs {
-      let user: Result<Option<&str>> = row.get(&columns[0]);
+      let user: Result<Option<String>> = row.get(&columns[0]);
       println!("row: user: {:?}", user);
     }
   }

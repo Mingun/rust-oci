@@ -108,9 +108,16 @@ impl OCINumber {
   }
 }
 impl FromDB for OCINumber {
-  fn from_db(ty: Type, raw: &[u8]) -> Result<&Self> {
+  fn from_db(ty: Type, raw: &[u8]) -> Result<Self> {
     match ty {
-      Type::VNU => Ok(unsafe { &*(raw.as_ptr() as *const OCINumber) }),
+      Type::VNU => {
+        if raw.len() != 22 {
+          return Err(Error::Conversion(ty));
+        }
+        let mut r = OCINumber([0; 22]);
+        r.0.clone_from_slice(raw);
+        Ok(r)
+      },
       t => Err(Error::Conversion(t)),
     }
   }

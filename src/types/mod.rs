@@ -221,16 +221,16 @@ impl Default for AuthMode {
 }
 
 /// Преобразует тип базы данных в тип Rust, для которого реализован данный типаж.
-pub trait FromDB {
-  fn from_db(ty: Type, raw: &[u8]) -> Result<&Self>;
+pub trait FromDB : Sized {
+  fn from_db(ty: Type, raw: &[u8]) -> Result<Self>;
 }
 
 macro_rules! simple_from {
   ($ty:ty, $($types:ident),+) => (
     impl FromDB for $ty {
-      fn from_db(ty: Type, raw: &[u8]) -> Result<&Self> {
+      fn from_db(ty: Type, raw: &[u8]) -> Result<Self> {
         match ty {
-          $(Type::$types)|+ => Ok(unsafe { &*(raw.as_ptr() as *const $ty) }),
+          $(Type::$types)|+ => Ok(unsafe { *(raw.as_ptr() as *const $ty) }),
           t => Err(Error::Conversion(t)),
         }
       }
@@ -250,10 +250,10 @@ simple_from!(i64, INT);
 
 simple_from!(u64, INT, UIN);
 
-impl FromDB for str {
-  fn from_db(ty: Type, raw: &[u8]) -> Result<&Self> {
+impl FromDB for String {
+  fn from_db(ty: Type, raw: &[u8]) -> Result<Self> {
     match ty {
-      Type::CHR => str::from_utf8(raw).map_err(|_| Error::Conversion(Type::CHR)),
+      Type::CHR => str::from_utf8(raw).map(str::to_owned).map_err(|_| Error::Conversion(Type::CHR)),
       t => Err(Error::Conversion(t)),
     }
   }
