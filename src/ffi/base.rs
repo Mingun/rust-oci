@@ -160,7 +160,7 @@ impl<T: HandleType> Handle<T> {
   /// - env:
   ///   Окружение, которое будет владеть созданным хендлом
   /// - err:
-  ///   Хендл для сюора ошибок при создании хендла. Может отсутствовать (когда создается сам хендл для сбора ошибок)
+  ///   Хендл для сбора ошибок при создании хендла. Может отсутствовать (когда создается сам хендл для сбора ошибок)
   pub fn new<E: ErrorHandle>(env: &Env, err: *mut E) -> Result<Handle<T>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
@@ -223,7 +223,7 @@ impl Handle<OCIError> {
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый дескриптор ресурсов оракла
 pub struct Descriptor<'d, T: 'd + DescriptorType> {
-  pub native: *const T,//FIXME: Нужно избавится от публичного доступа
+  native: *const T,
   phantom: PhantomData<&'d T>,
 }
 impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
@@ -242,6 +242,17 @@ impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
     match res {
       0 => Ok(Descriptor { native: native, phantom: PhantomData }),
       e => Err(err.decode(e)),
+    }
+  }
+  pub fn address_mut(&mut self) -> *mut c_void {
+    &mut self.native as *mut *const T as *mut c_void
+  }
+  pub fn as_slice(&self) -> &[u8] {
+    unsafe {
+      slice::from_raw_parts(
+        &self.native as *const *const T as *const u8,
+        mem::size_of::<*const T>()
+      )
     }
   }
 }

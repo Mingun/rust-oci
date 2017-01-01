@@ -280,31 +280,29 @@ impl<'d> Storage<'d> {
   fn as_ptr(&mut self) -> *mut c_void {
     match *self {
       Storage::Vec { ptr, .. } => ptr as *mut c_void,
-      Storage::Time(ref mut d) => &mut d.native as *mut *const OCIDateTime as *mut c_void,
-      Storage::Interval(ref mut d) => &mut d.native as *mut *const OCIInterval as *mut c_void,
+      Storage::Time(ref mut d) => d.address_mut(),
+      Storage::Interval(ref mut d) => d.address_mut(),
     }
   }
   /// Получает вместимость буфера
   fn capacity(&self) -> c_int {
     match *self {
       Storage::Vec { capacity, .. } => capacity as c_int,
-      Storage::Time(_) => mem::size_of::<*const OCIDateTime> as c_int,
-      Storage::Interval(_) => mem::size_of::<*const OCIInterval> as c_int,
+      _ => mem::size_of::<*const ()>() as c_int,
     }
   }
   /// Получает адрес в памяти, куда будет записан размер данных, фактически извлеченный из базы
   fn size_mut(&mut self) -> *mut c_ushort {
     match *self {
       Storage::Vec { ref mut size, .. } => size,
-      Storage::Time(_) => ptr::null_mut(),
-      Storage::Interval(_) => ptr::null_mut(),
+      _ => ptr::null_mut(),
     }
   }
   fn as_slice(&self) -> &[u8] {
     match *self {
       Storage::Vec { ptr, size, .. } => unsafe { slice::from_raw_parts(ptr, size as usize) },
-      Storage::Time(ref d) => unsafe { slice::from_raw_parts(d.native() as *const u8, mem::size_of::<*const OCIDateTime>()) },
-      Storage::Interval(ref d) => unsafe { slice::from_raw_parts(d.native() as *const u8, mem::size_of::<*const OCIInterval>()) },
+      Storage::Time(ref d) => d.as_slice(),
+      Storage::Interval(ref d) => d.as_slice(),
     }
   }
 }
@@ -411,12 +409,6 @@ impl<'d, T> From<Descriptor<'d, T>> for DefineInfo<'d>
 {
   fn from(backend: Descriptor<'d, T>) -> Self {
     DefineInfo { storage: backend.into(), is_null: 0, ret_code: 0 }
-  }
-}
-impl<'d> Drop for DefineInfo<'d> {
-  fn drop(&mut self) {
-    self.is_null = 0;
-    self.ret_code = 0;
   }
 }
 /// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки
