@@ -2,6 +2,9 @@ use std::str;
 use Result;
 use error::Error;
 
+#[cfg(feature = "with-chrono")]
+mod chrono;
+
 /// Возможные типы данных базы данных
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]

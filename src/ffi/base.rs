@@ -223,7 +223,7 @@ impl Handle<OCIError> {
 //-------------------------------------------------------------------------------------------------
 /// Автоматически освобождаемый дескриптор ресурсов оракла
 pub struct Descriptor<'d, T: 'd + DescriptorType> {
-  native: *const T,
+  pub native: *const T,//FIXME: Нужно избавится от публичного доступа
   phantom: PhantomData<&'d T>,
 }
 impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {

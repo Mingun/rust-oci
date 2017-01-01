@@ -178,7 +178,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Переменная, в которую будет записан признак того, что в столбце содержится `NULL`.
   /// - out_size:
   ///   Количество байт, записанное в буфер. Не превышает его длину
-  fn define(&self, pos: usize, dty: Type, buf: &mut Storage, mode: DefineMode) -> Result<()> {
+  fn define(&self, pos: usize, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> Result<()> {
     let res = unsafe {
       OCIDefineByPos(
         self.native as *mut OCIStmt,
@@ -189,9 +189,9 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         // В API оракла нумерация с 1, мы же придерживаемся традиционной с 0
         (pos + 1) as c_uint,
         // Указатель на данные для размещения результата, его размер и тип
-        buf.ptr as *mut c_void, buf.capacity as c_int, dty as c_ushort,
-        (&mut buf.is_null as *mut c_short) as *mut c_void,// Массив индикаторов (null/не null)
-        &mut buf.size as *mut c_ushort,// Массив длин для каждого значения, которое извлекли из базы
+        buf.as_ptr(), buf.capacity(), dty as c_ushort,
+        &mut buf.is_null as *mut c_short as *mut c_void,// Массив индикаторов (null/не null)
+        buf.size_mut(),// Массив длин для каждого значения, которое извлекли из базы
         &mut buf.ret_code as *mut c_ushort,// Массив для column-level return codes
         mode as c_uint
       )
@@ -261,15 +261,75 @@ pub trait StatementPrivate {
 }
 impl<'conn, 'key> StatementPrivate for Statement<'conn, 'key> {}
 
+#[derive(Debug)]
+enum Storage<'d> {
+  Vec {
+    /// Указатель на начало памяти, где будут храниться данные
+    ptr: *mut u8,
+    /// Количество байт, выделенной по указателю `ptr`.
+    capacity: usize,
+    /// Количество байт, реально используемое для хранения данных.
+    size: c_ushort,
+  },
+  /// Хранит дескриптор для получения значений столбцов с датами
+  Time(Descriptor<'d, OCIDateTime>),
+}
+impl<'d> Storage<'d> {
+  /// Получает адрес блока памяти, который можно использовать для записи в него значений
+  fn as_ptr(&mut self) -> *mut c_void {
+    match *self {
+      Storage::Vec { ptr, .. } => ptr as *mut c_void,
+      Storage::Time(ref mut d) => &mut d.native as *mut *const OCIDateTime as *mut c_void,
+    }
+  }
+  /// Получает вместимость буфера
+  fn capacity(&self) -> c_int {
+    match *self {
+      Storage::Vec { capacity, .. } => capacity as c_int,
+      Storage::Time(_) => mem::size_of::<*const OCIDateTime> as c_int,
+    }
+  }
+  /// Получает адрес в памяти, куда будет записан размер данных, фактически извлеченный из базы
+  fn size_mut(&mut self) -> *mut c_ushort {
+    match *self {
+      Storage::Vec { ref mut size, .. } => size,
+      Storage::Time(_) => ptr::null_mut(),
+    }
+  }
+  fn as_slice(&self) -> &[u8] {
+    match *self {
+      Storage::Vec { ptr, size, .. } => unsafe { slice::from_raw_parts(ptr, size as usize) },
+      Storage::Time(ref d) => unsafe { slice::from_raw_parts(d.native() as *const u8, mem::size_of::<*const OCIDateTime>()) },
+    }
+  }
+}
+impl<'d> From<Vec<u8>> for Storage<'d> {
+  fn from(mut backend: Vec<u8>) -> Self {
+    let res = Storage::Vec { ptr: backend.as_mut_ptr(), size: 0, capacity: backend.capacity() };
+    // Вектор уходит в небытие, чтобы он не забрал память с собой, забываем его
+    mem::forget(backend);
+    res
+  }
+}
+impl<'d> From<Descriptor<'d, OCIDateTime>> for Storage<'d> {
+  fn from(backend: Descriptor<'d, OCIDateTime>) -> Self {
+    Storage::Time(backend)
+  }
+}
+impl<'d> Drop for Storage<'d> {
+  fn drop(&mut self) {
+    // Освобождаем память деструктором вектора, ведь память была выделена его конструктором
+    if let Storage::Vec { ptr, capacity, size } = *self {
+      unsafe { Vec::from_raw_parts(ptr, size as usize, capacity) };
+    };
+  }
+}
+
+
 /// Хранилище буферов для биндинга результатов, извлекаемых из базы, для одной колонки
 #[derive(Debug)]
-struct Storage {
-  /// Указатель на начало памяти, где будут храниться данные
-  ptr: *mut u8,
-  /// Количество байт, выделенной по указателю `ptr`.
-  capacity: usize,
-  /// Количество байт, реально используемое для хранения данных.
-  size: c_ushort,
+struct DefineInfo<'d> {
+  storage: Storage<'d>,
   /// Возможные значения:
   /// * `-2`  The length of the item is greater than the length of the output variable; the item has been truncated. Additionally,
   ///         the original length is longer than the maximum data length that can be returned in the sb2 indicator variable.
@@ -280,17 +340,37 @@ struct Storage {
   is_null: c_short,
   ret_code: c_ushort,
 }
-impl Storage {
-  #[inline]
-  fn to_vec(&self) -> Vec<u8> {
-    unsafe { Vec::from_raw_parts(self.ptr, self.size as usize, self.capacity) }
+impl<'d> DefineInfo<'d> {
+  fn new(stmt: &'d Statement, column: &Column) -> Result<Self> {
+    match column.type_ {
+      //Type::DAT |
+      Type::TIMESTAMP |
+      Type::TIMESTAMP_TZ |
+      Type::TIMESTAMP_LTZ => {
+        Ok(try!(stmt.conn.server.env.descriptor()).into())
+      },
+      _ => Ok(Vec::with_capacity(column.size).into()),
+    }
   }
+  #[inline]
+  fn as_ptr(&mut self) -> *mut c_void {
+    self.storage.as_ptr()
+  }
+  #[inline]
+  fn capacity(&self) -> c_int {
+    self.storage.capacity()
+  }
+  #[inline]
+  fn size_mut(&mut self) -> *mut c_ushort {
+    self.storage.size_mut()
+  }
+
   /// Возвращает представление данного хранилища в виде среза из массива байт, если
   /// в хранилище есть данные и `None`, если в хранилище хранится `NULL` значение.
   #[inline]
   fn as_slice(&self) -> Option<&[u8]> {
     match self.is_null {
-      0 => Some(unsafe { slice::from_raw_parts(self.ptr, self.size as usize) }),
+      0 => Some(self.storage.as_slice()),
       _ => None
     }
   }
@@ -303,47 +383,37 @@ impl Storage {
     }
   }
 }
-impl From<Vec<u8>> for Storage {
-  fn from(mut backend: Vec<u8>) -> Self {
-    let res = Storage { ptr: backend.as_mut_ptr(), size: 0, capacity: backend.capacity(), is_null: 0, ret_code: 0 };
-    // Вектор уходит в небытие, чтобы он не забрал память с собой, забываем его
-    mem::forget(backend);
-    res
+impl<'d> From<Vec<u8>> for DefineInfo<'d> {
+  fn from(backend: Vec<u8>) -> Self {
+    DefineInfo { storage: backend.into(), is_null: 0, ret_code: 0 }
   }
 }
-impl Into<Option<Vec<u8>>> for Storage {
-  fn into(self) -> Option<Vec<u8>> {
-    match self.is_null {
-      0 => Some(self.to_vec()),
-      _ => None
-    }
+impl<'d> From<Descriptor<'d, OCIDateTime>> for DefineInfo<'d> {
+  fn from(backend: Descriptor<'d, OCIDateTime>) -> Self {
+    DefineInfo { storage: backend.into(), is_null: 0, ret_code: 0 }
   }
 }
-impl Drop for Storage {
+impl<'d> Drop for DefineInfo<'d> {
   fn drop(&mut self) {
-    // Освобождаем память деструктором вектора, ведь память была выделена его конструктором
-    drop(self.to_vec());
-    self.ptr = ptr::null_mut();
-    self.capacity = 0;
-    self.size = 0;
     self.is_null = 0;
     self.ret_code = 0;
   }
 }
 /// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки
 #[derive(Debug)]
-pub struct Row {
+pub struct Row<'d> {
   /// Массив данных для каждой колонки.
-  data: Vec<Storage>,
+  data: Vec<DefineInfo<'d>>,
 }
-impl Row {
-  fn new(stmt: &Statement) -> Result<Self> {
+impl<'d> Row<'d> {
+  fn new(stmt: &'d Statement) -> Result<Self> {
     let columns = try!(stmt.columns());
-    let mut data: Vec<Storage> = Vec::with_capacity(columns.len());
+    let mut data: Vec<DefineInfo> = Vec::with_capacity(columns.len());
 
-    for c in columns {
-      data.push(Vec::with_capacity(c.size).into());
-      try!(stmt.define(c.pos, c.bind_type(), &mut data.last_mut().unwrap(), Default::default()));
+    for c in &columns {
+      data.push(try!(DefineInfo::new(stmt, c)));
+      // unwrap делать безопасно, т.к. мы только что вставили в массив данные
+      try!(stmt.define(c.pos, c.bind_type(), data.last_mut().unwrap(), Default::default()));
     }
 
     Ok(Row { data: data })
@@ -358,7 +428,7 @@ pub struct RowSet<'s> {
 }
 
 impl<'s> Iterator for RowSet<'s> {
-  type Item = Row;
+  type Item = Row<'s>;
 
   fn next(&mut self) -> Option<Self::Item> {
     let r = Row::new(self.stmt).expect("Row::new failed");

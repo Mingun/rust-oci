@@ -53,7 +53,49 @@ impl ParamHandle for OCIStmt { const ID: Handle = Handle::Stmt; }
 pub trait DescriptorType {
   const ID: Descriptor;
 }
-#[derive(Debug)] pub enum OCILobLocator {} impl DescriptorType for OCILobLocator { const ID: Descriptor = Descriptor::Lob; }
-#[derive(Debug)] pub enum OCISnapshot {}   impl DescriptorType for OCISnapshot   { const ID: Descriptor = Descriptor::Snapshot; }
-#[derive(Debug)] pub enum OCIParam {}      impl DescriptorType for OCIParam      { const ID: Descriptor = Descriptor::Param; }
+
+#[derive(Debug)] pub enum OCISnapshot {}          impl DescriptorType for OCISnapshot           { const ID: Descriptor = Descriptor::Snapshot; }
+//#[derive(Debug)] pub enum OCIResult {}            impl DescriptorType for OCIResult             { const ID: Descriptor = Descriptor::; }
+#[derive(Debug)] pub enum OCILobLocator {}        impl DescriptorType for OCILobLocator         { const ID: Descriptor = Descriptor::Lob; }//FIXME: Может также быть и File
+//#[derive(Debug)] pub enum OCILobRegion {}         impl DescriptorType for OCILobRegion          { const ID: Descriptor = Descriptor::; }
+#[derive(Debug)] pub enum OCIParam {}             impl DescriptorType for OCIParam              { const ID: Descriptor = Descriptor::Param; }
+#[derive(Debug)] pub enum OCIComplexObjectComp {} impl DescriptorType for OCIComplexObjectComp  { const ID: Descriptor = Descriptor::ComplexObjectComp; }
+#[derive(Debug)] pub enum OCIRowid {}             impl DescriptorType for OCIRowid              { const ID: Descriptor = Descriptor::RowID; }
+#[derive(Debug)] pub enum OCIDateTime {}          impl DescriptorType for OCIDateTime           { const ID: Descriptor = Descriptor::Timestamp; }//FIXME: Может также быть и Date, TimestampWithTZ, TimestampWithLTZ
+#[derive(Debug)] pub enum OCIInterval {}          impl DescriptorType for OCIInterval           { const ID: Descriptor = Descriptor::IntervalYM; }//FIXME: Может также быть и IntervalDS
+#[derive(Debug)] pub enum OCIUcb {}               impl DescriptorType for OCIUcb                { const ID: Descriptor = Descriptor::UCB; }
+#[derive(Debug)] pub enum OCIServerDNs {}         impl DescriptorType for OCIServerDNs          { const ID: Descriptor = Descriptor::ServerDN; }
+
 #[derive(Debug)] pub enum OCIType {}
+/*
+macro_rules! descriptor {
+  ($kind:ident, $name:ident) => (
+    #[derive(Debug)]
+    pub enum $name {}
+    impl DescriptorType for $name { const ID: Descriptor = Descriptor::$name; }
+    impl $kind for $name {}
+  );
+}
+
+pub trait OCILobLocator : DescriptorType {}
+descriptor!(OCILobLocator, Lob);
+descriptor!(OCILobLocator, File);
+
+pub trait OCIDateTime : DescriptorType {}
+descriptor!(OCIDateTime, Date);
+//descriptor!(OCIDateTime, Time);
+//descriptor!(OCIDateTime, TimeWithTZ);
+descriptor!(OCIDateTime, Timestamp);
+descriptor!(OCIDateTime, TimestampWithTZ);
+descriptor!(OCIDateTime, TimestampWithLTZ);
+
+pub trait OCIInterval : DescriptorType {}
+descriptor!(OCIInterval, IntervalYM);
+descriptor!(OCIInterval, IntervalDS);*/
+/*
+#[derive(Debug)]
+#[repr(C)]
+pub enum OCILobLocator {
+  Lob {},
+  File {},
+}*/
