@@ -273,6 +273,7 @@ enum Storage<'d> {
   },
   /// Хранит дескриптор для получения значений столбцов с датами
   Time(Descriptor<'d, OCIDateTime>),
+  Interval(Descriptor<'d, OCIInterval>),
 }
 impl<'d> Storage<'d> {
   /// Получает адрес блока памяти, который можно использовать для записи в него значений
@@ -280,6 +281,7 @@ impl<'d> Storage<'d> {
     match *self {
       Storage::Vec { ptr, .. } => ptr as *mut c_void,
       Storage::Time(ref mut d) => &mut d.native as *mut *const OCIDateTime as *mut c_void,
+      Storage::Interval(ref mut d) => &mut d.native as *mut *const OCIInterval as *mut c_void,
     }
   }
   /// Получает вместимость буфера
@@ -287,6 +289,7 @@ impl<'d> Storage<'d> {
     match *self {
       Storage::Vec { capacity, .. } => capacity as c_int,
       Storage::Time(_) => mem::size_of::<*const OCIDateTime> as c_int,
+      Storage::Interval(_) => mem::size_of::<*const OCIInterval> as c_int,
     }
   }
   /// Получает адрес в памяти, куда будет записан размер данных, фактически извлеченный из базы
@@ -294,12 +297,14 @@ impl<'d> Storage<'d> {
     match *self {
       Storage::Vec { ref mut size, .. } => size,
       Storage::Time(_) => ptr::null_mut(),
+      Storage::Interval(_) => ptr::null_mut(),
     }
   }
   fn as_slice(&self) -> &[u8] {
     match *self {
       Storage::Vec { ptr, size, .. } => unsafe { slice::from_raw_parts(ptr, size as usize) },
       Storage::Time(ref d) => unsafe { slice::from_raw_parts(d.native() as *const u8, mem::size_of::<*const OCIDateTime>()) },
+      Storage::Interval(ref d) => unsafe { slice::from_raw_parts(d.native() as *const u8, mem::size_of::<*const OCIInterval>()) },
     }
   }
 }
@@ -314,6 +319,11 @@ impl<'d> From<Vec<u8>> for Storage<'d> {
 impl<'d> From<Descriptor<'d, OCIDateTime>> for Storage<'d> {
   fn from(backend: Descriptor<'d, OCIDateTime>) -> Self {
     Storage::Time(backend)
+  }
+}
+impl<'d> From<Descriptor<'d, OCIInterval>> for Storage<'d> {
+  fn from(backend: Descriptor<'d, OCIInterval>) -> Self {
+    Storage::Interval(backend)
   }
 }
 impl<'d> Drop for Storage<'d> {
@@ -341,14 +351,21 @@ struct DefineInfo<'d> {
   ret_code: c_ushort,
 }
 impl<'d> DefineInfo<'d> {
+  /// Создает буферы для хранения информации, извлекаемой из базы
   fn new(stmt: &'d Statement, column: &Column) -> Result<Self> {
     match column.type_ {
       //Type::DAT |
       Type::TIMESTAMP |
       Type::TIMESTAMP_TZ |
       Type::TIMESTAMP_LTZ => {
-        Ok(try!(stmt.conn.server.env.descriptor()).into())
+        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.env.descriptor());
+        Ok(d.into())
       },
+      Type::INTERVAL_YM |
+      Type::INTERVAL_DS => {
+        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.env.descriptor());
+        Ok(d.into())
+      }
       _ => Ok(Vec::with_capacity(column.size).into()),
     }
   }
@@ -388,8 +405,11 @@ impl<'d> From<Vec<u8>> for DefineInfo<'d> {
     DefineInfo { storage: backend.into(), is_null: 0, ret_code: 0 }
   }
 }
-impl<'d> From<Descriptor<'d, OCIDateTime>> for DefineInfo<'d> {
-  fn from(backend: Descriptor<'d, OCIDateTime>) -> Self {
+impl<'d, T> From<Descriptor<'d, T>> for DefineInfo<'d>
+  where T: DescriptorType,
+        Storage<'d>: From<Descriptor<'d, T>>
+{
+  fn from(backend: Descriptor<'d, T>) -> Self {
     DefineInfo { storage: backend.into(), is_null: 0, ret_code: 0 }
   }
 }
