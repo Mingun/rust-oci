@@ -3,6 +3,11 @@ name = "oci"
 version = "0.1.0"
 authors = ["Mingun"]
 build = "build.rs"
+license = "MIT"
+description = "A binding to Oracle Call Interface (OCI) native library"
+repository = "https://github.com/Mingun/rust-oci"
+readme = "README.md"
+keywords = ["binding", "database", "oracle", "oci", "sql"]
 
 [dependencies]
 num-integer = "*"
