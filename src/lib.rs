@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 // Для типажей числовых типов, чтобы можно было реализовать управление атрибутами в обобщенном виде
 extern crate num_integer;
+extern crate num_traits;
 
 pub mod error;
 pub mod params;

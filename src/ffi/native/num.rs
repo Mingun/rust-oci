@@ -5,12 +5,17 @@
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
 use std::mem::size_of;
-use super::OCIError;
-use super::super::types::NumberFlag;
-use super::super::base::Handle;
+
+use num_traits::{Signed, Unsigned};
+use num_integer::Integer;
+
 use {Connection, Result};
 use types::{FromDB, Type};
 use error::Error;
+
+use super::OCIError;
+use super::super::types::NumberFlag;
+use super::super::base::Handle;
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
@@ -90,15 +95,21 @@ extern "C" {
 pub struct OCINumber([u8; 22]);
 
 impl OCINumber {
-  pub fn to_usize(&self, err: &Handle<OCIError>) -> Result<usize> {
-    let mut result: usize = 0;
+  pub fn to_u<I: Integer + Unsigned>(&self, err: &Handle<OCIError>) -> Result<I> {
+    self.to(err, NumberFlag::Unsigned)
+  }
+  pub fn to_i<I: Integer + Signed>(&self, err: &Handle<OCIError>) -> Result<I> {
+    self.to(err, NumberFlag::Signed)
+  }
+  fn to<I: Integer>(&self, err: &Handle<OCIError>, signed: NumberFlag) -> Result<I> {
+    let mut result: I = I::zero();
     let res = unsafe {
       OCINumberToInt(
         err.native_mut(),
         self.0.as_ptr() as *const OCINumber,
-        size_of::<usize>() as c_uint,
-        NumberFlag::Unsigned as c_uint,
-        &mut result as *mut usize as *mut c_void
+        size_of::<I>() as c_uint,
+        signed as c_uint,
+        &mut result as *mut I as *mut c_void
       )
     };
     match res {
