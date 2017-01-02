@@ -7,7 +7,7 @@ use Result;
 use error::{Error, DbError};
 
 use super::{check, Env};
-use super::base::AttrHolder;
+use super::attr::AttrHolder;
 use super::native::OCIError;// FFI типы
 use super::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функции
 use super::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI

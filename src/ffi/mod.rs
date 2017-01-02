@@ -7,7 +7,6 @@ use params::{ConnectParams, Credentials};
 use types::{AuthMode, CreateMode};
 
 mod attr;
-mod base;
 mod env;
 mod handle;
 mod descriptor;
@@ -24,7 +23,9 @@ pub use self::descriptor::Descriptor;
 pub use self::types::{MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
 use self::native::*;
-use self::base::AttrHolder;
+
+// Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости
+use self::attr::AttrHolder;
 use self::stmt::StatementPrivate;
 
 fn check(native: c_int) -> Result<()> {

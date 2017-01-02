@@ -11,7 +11,7 @@ use error::DbError::NoData;
 use types::{FromDB, Type};
 
 use super::{Descriptor, Handle};
-use super::base::AttrHolder;
+use super::attr::AttrHolder;
 use super::native::*;
 use super::types::Attr;
 use super::types::{DefineMode, CachingMode, ExecuteMode, FetchMode, Syntax};
