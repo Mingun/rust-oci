@@ -13,7 +13,9 @@ mod ffi;
 /// В большинстве случаев библиотека никогда не генерирует панику, всегда возращая ошибочный
 /// результат в виде ошибке. Немногочисленные исключения документированы особо, и существуют
 /// потому, что внешнее по отношению к библиотеке API не позволяет вернуть ошибку (Например,
-/// из реализации типажа `Drop`).
+/// из реализации типажа [`Drop`][1]).
+///
+/// [1]: https://doc.rust-lang.org/std/ops/trait.Drop.html
 pub type Result<T> = std::result::Result<T, error::Error>;
 // Реэкспорты
 pub use ffi::stmt::{Column, Statement, RowSet, Row};
@@ -46,13 +48,29 @@ pub struct Environment<'e> {
   error: Handle<OCIError>,
 }
 impl<'e> Environment<'e> {
+  /// Создает окружение -- менеджер подключений к базе данных. Параметр `mode` позволяет задать возможности,
+  /// которые будут доступны при работе с базой данных.
+  ///
+  /// # OCI вызовы
+  /// Осуществляет OCI вызов [`OCIEnvNlsCreate()`][new]. При разрушении объекта будет осуществлен OCI вызов
+  /// [`OCITerminate()`][end].
+  ///
+  /// [new]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-0B6911A9-4B46-476C-BC5E-B87581666CD9
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-B7BC5F9E-811C-490A-B308-472A12D690D2
   pub fn new(mode: CreateMode) -> Result<Self> {
     let mut env = try!(Env::new(mode));
     let err: Handle<OCIError> = try!(env.error_handle());
 
     Ok(Environment { env: env, error: err })
   }
-  /// Осуществляет подключение к базе данных с указанными параметрами
+  /// Осуществляет подключение к базе данных с указанными параметрами.
+  ///
+  /// # OCI вызовы
+  /// Осуществляет OCI вызов [`OCISessionBegin()`][new]. При разрушении объекта соединения будет осуществлен OCI вызов
+  /// [`OCISessionEnd()`][end].
+  ///
+  /// [new]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17123
   #[inline]
   pub fn connect<P: Into<ConnectParams>>(&'e self, params: P) -> Result<Connection<'e>> {
     Connection::new(&self, &params.into())
@@ -77,6 +95,15 @@ impl<'e> Environment<'e> {
 /// Соединение зависит от окружения, создавшего его, таким образом, окружение является менеджером
 /// соединений. При уничтожении окружения все соединения закрываются, а не закоммиченные транзакции
 /// в них откатываются.
+///
+/// # OCI вызовы
+/// Объект соединения создается последовательными OCI вызовами [`OCIServerAttach()`][new1] и [`OCISessionBegin()`][new2].
+/// При разрушении объекта будет осуществлен сначала OCI вызов [`OCISessionEnd()`][end2], а затем [`OCIServerDetach()`][end1].
+///
+/// [new1]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-B6291228-DA2F-4CE9-870A-F94243141757
+/// [end1]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17121
+/// [new2]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947
+/// [end2]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17123
 #[derive(Debug)]
 pub struct Connection<'e> {
   /// Хендл сервера, к которому будут направляться запросы. Несколько пользователей (подключений)
@@ -136,10 +163,48 @@ impl<'e> Connection<'e> {
     self.server.error()
   }
 
+  /// Осуществляет разбор SQL-выражения и создает подготовленное выражение для дальнейшего эффективного исполнения запросов.
+  /// Выражение использует родной для сервера базы данных синтаксис разбора запросов. Если вам требуется использовать конкретный
+  /// синтаксис, воспользуйтесь методом [`prepare_with_syntax`][1].
+  ///
+  /// Полученное выражение не кешируется и повторный вызов данной функции с таким же текстом запроса приведет к запросу на сервер
+  /// базы данных для разбора выражения.
+  ///
+  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытия соединения автоматически закрывает все
+  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоится об этом, компилятор не позволит иметь
+  /// ссылку на выражение, если соединение будет разрушено (если не использовать небезопасную `unsafe`-магию).
+  ///
+  /// # OCI вызовы
+  /// Объект выражения создается OCI вызовом [`OCIStmtPrepare2()`][new]. При разрушении объекта соединения будет осуществлен
+  /// OCI вызов [`OCIStmtRelease()`][end].
+  ///
+  /// [new]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17168
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17170
+  ///
+  /// [1]: #method.prepare_with_syntax
   #[inline]
   pub fn prepare(&'e self, sql: &str) -> Result<Statement<'e, 'e>> {
     self.prepare_with_syntax(Syntax::default(), sql)
   }
+  /// Осуществляет разбор SQL-выражения и создает подготовленное выражение для дальнейшего эффективного исполнения запросов.
+  /// При разборе текста выражения используется указанный синтаксис сервера базы данных. В большинстве случаев стоит предпочитать
+  /// использование родного для базы данных синтаксиса разбора, так что рекомендуется использовать метод [`prepare`][1].
+  ///
+  /// Полученное выражение не кешируется и повторный вызов данной функции с таким же текстом запроса приведет к запросу на сервер
+  /// базы данных для разбора выражения.
+  ///
+  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытия соединения автоматически закрывает все
+  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоится об этом, компилятор не позволит иметь
+  /// ссылку на выражение, если соединение будет разрушено (если не использовать небезопасную `unsafe`-магию).
+  ///
+  /// # OCI вызовы
+  /// Объект выражения создается OCI вызовом [`OCIStmtPrepare2()`][new]. При разрушении объекта соединения будет осуществлен
+  /// OCI вызов [`OCIStmtRelease()`][end].
+  ///
+  /// [new]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17168
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17170
+  ///
+  /// [1]: #method.prepare
   #[inline]
   pub fn prepare_with_syntax(&'e self, syntax: Syntax, sql: &str) -> Result<Statement<'e, 'e>> {
     Statement::new(&self, sql, None, syntax)
