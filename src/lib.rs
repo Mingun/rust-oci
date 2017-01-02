@@ -8,10 +8,152 @@ pub mod error;
 pub mod params;
 pub mod types;
 mod ffi;
-pub use ffi::*;
 
-type Result<T> = std::result::Result<T, error::Error>;
+/// Тип результата, возвращаемый всеми функциями библиотеки, которые могут привести к ошибке.
+/// В большинстве случаев библиотека никогда не генерирует панику, всегда возращая ошибочный
+/// результат в виде ошибке. Немногочисленные исключения документированы особо, и существуют
+/// потому, что внешнее по отношению к библиотеке API не позволяет вернуть ошибку (Например,
+/// из реализации типажа `Drop`).
+pub type Result<T> = std::result::Result<T, error::Error>;
+// Реэкспорты
+pub use ffi::stmt::{Column, Statement, RowSet, Row};
 
+use std::os::raw::c_uint;
+
+use params::{ConnectParams, Credentials};
+use types::{CreateMode, AuthMode};
+
+use ffi::{Env, Server, Handle, Descriptor};
+use ffi::types::{Attr, CredentialMode, Syntax};
+use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
+use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции
+use ffi::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
+
+// Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости
+use ffi::attr::AttrHolder;
+use ffi::stmt::StatementPrivate;
+
+//-------------------------------------------------------------------------------------------------
+/// Окружение представляет собой менеджер соединений к базе. При разрушении окружения
+/// все открытые соединения автоматически закрываются а незавершенные транзакции в них
+/// откатываются.
+#[derive(Debug)]
+pub struct Environment<'e> {
+  /// Автоматически закрываемый враппер над низкоуровневыми функциями работы с окружением Oracle
+  env: Env<'e>,
+  /// Хендл для приема ошибок от нативных вызовов оракла. Позволяет затем получить код ошибки
+  /// и ее описание.
+  error: Handle<OCIError>,
+}
+impl<'e> Environment<'e> {
+  pub fn new(mode: CreateMode) -> Result<Self> {
+    let mut env = try!(Env::new(mode));
+    let err: Handle<OCIError> = try!(env.error_handle());
+
+    Ok(Environment { env: env, error: err })
+  }
+  /// Осуществляет подключение к базе данных с указанными параметрами
+  #[inline]
+  pub fn connect<P: Into<ConnectParams>>(&'e self, params: P) -> Result<Connection<'e>> {
+    Connection::new(&self, &params.into())
+  }
+  #[inline]
+  fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
+    self.env.handle(self.error.native_mut())
+  }
+  #[inline]
+  fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+    Descriptor::new(&self)
+  }
+  /// Получает хендл для записи ошибок во время общения с базой данных. В случае возникновения ошибки при вызове
+  /// FFI-функции она может быть получена из хендла с помощью вызова `decode(ffi_result)`.
+  #[inline]
+  fn error(&self) -> &Handle<OCIError> {
+    &self.error
+  }
+}
+//-------------------------------------------------------------------------------------------------
+/// Представляет соединение к базе данных, с определенным пользователем и паролем.
+/// Соединение зависит от окружения, создавшего его, таким образом, окружение является менеджером
+/// соединений. При уничтожении окружения все соединения закрываются, а не закоммиченные транзакции
+/// в них откатываются.
+#[derive(Debug)]
+pub struct Connection<'e> {
+  /// Хендл сервера, к которому будут направляться запросы. Несколько пользователей (подключений)
+  /// могут одновременно работать с одним сервером через общий хендл. В настоящий момент это не
+  /// поддерживается, каждое подключение использует свое сетевое соединение к серверу.
+  server: Server<'e>,
+  /// Хендл, хранящий информацию об учетных данных пользователя, независимо от того, к какой инстанции БД он
+  /// подключен и подключен ли вообще.
+  context: Handle<OCISvcCtx>,
+  /// Хендл, хранящий информацию о логине конкретного пользователя БД к конкретному серверу БД.
+  session: Handle<OCISession>,
+  /// Режим аутетификации, который использовался при создании соединения. Необходим при закрытии
+  auth_mode: AuthMode,
+}
+impl<'e> Connection<'e> {
+  fn new(env: &'e Environment, params: &ConnectParams) -> Result<Self> {
+    let server = try!(Server::new(env, Some(&params.dblink), params.attach_mode));
+    let mut context: Handle<OCISvcCtx > = try!(env.handle());
+    let mut session: Handle<OCISession> = try!(env.handle());
+
+    let credMode = match params.credentials {
+      Credentials::Rdbms { ref username, ref password } => {
+        // Ассоциируем имя пользователя и пароль с сессией.
+        // Надо отметить, что эти атрибуты сохраняются после закрытия сессии и при переподключении
+        // можно их заново не устанавливать.
+        try!(session.set_str(username, Attr::Username, &env.error));
+        try!(session.set_str(password, Attr::Password, &env.error));
+
+        // Так как мы подключаемся и использованием имени пользователя и пароля, используем аутентификацию
+        // базы данных
+        CredentialMode::Rdbms
+      },
+      Credentials::Ext => CredentialMode::Ext,
+    };
+
+    // Ассоциируем сервер с контекстом и осуществляем подключение
+    try!(context.set_handle(server.handle(), Attr::Server, &env.error));
+    let res = unsafe {
+      OCISessionBegin(
+        context.native_mut(),
+        env.error.native_mut(),
+        session.native_mut(),
+        credMode as c_uint,
+        params.auth_mode as c_uint
+      )
+    };
+    try!(env.error.check(res));
+    try!(context.set_handle(&session, Attr::Session, &env.error));
+
+    Ok(Connection { server: server, context: context, session: session, auth_mode: params.auth_mode })
+  }
+  /// Получает хендл для записи ошибок во время общения с базой данных. Хендл берется из окружения, которое породило
+  /// данное соединение. В случае возникновения ошибки при вызове FFI-функции она может быть получена из хендла с помощью
+  /// вызова `decode(ffi_result)`.
+  #[inline]
+  fn error(&self) -> &Handle<OCIError> {
+    self.server.error()
+  }
+
+  #[inline]
+  pub fn prepare(&'e self, sql: &str) -> Result<Statement<'e, 'e>> {
+    Statement::new(&self, sql, None, Syntax::Native)
+  }
+}
+impl<'e> Drop for Connection<'e> {
+  fn drop(&mut self) {
+    let res = unsafe {
+      OCISessionEnd(
+        self.context.native_mut(),
+        self.error().native_mut(),
+        self.session.native_mut(),
+        self.auth_mode as c_uint
+      )
+    };
+    self.error().check(res).expect("OCISessionEnd");
+  }
+}
 
 #[cfg(test)]
 mod tests {
