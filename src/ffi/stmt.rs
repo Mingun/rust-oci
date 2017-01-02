@@ -10,11 +10,11 @@ use error::Error::Db;
 use error::DbError::NoData;
 use types::{FromDB, Type, Syntax};
 
-use ffi::native::time::{IntervalYM, IntervalDS};
+use ffi::native::time::{Timestamp, TimestampWithTZ, TimestampWithLTZ, IntervalYM, IntervalDS};
 
 use super::{Descriptor, GenericDescriptor, Handle};
 use super::attr::AttrHolder;
-use super::native::{OCIParam, OCIStmt, OCIBind, OCIDateTime, OCIError};// FFI типы
+use super::native::{OCIParam, OCIStmt, OCIBind, OCIError};// FFI типы
 use super::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
 use super::native::{ParamHandle, DescriptorType};// Типажи для безопасного моста к FFI
 use super::types::Attr;
@@ -350,10 +350,16 @@ impl<'d> DefineInfo<'d> {
   fn new(stmt: &'d Statement, column: &Column) -> Result<Self> {
     match column.type_ {
       //Type::DAT |
-      Type::TIMESTAMP |
-      Type::TIMESTAMP_TZ |
+      Type::TIMESTAMP => {
+        let d: Descriptor<'d, Timestamp> = try!(stmt.conn.server.new_descriptor());
+        Ok(d.into())
+      }
+      Type::TIMESTAMP_TZ => {
+        let d: Descriptor<'d, TimestampWithTZ> = try!(stmt.conn.server.new_descriptor());
+        Ok(d.into())
+      }
       Type::TIMESTAMP_LTZ => {
-        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.new_descriptor());
+        let d: Descriptor<'d, TimestampWithLTZ> = try!(stmt.conn.server.new_descriptor());
         Ok(d.into())
       },
       Type::INTERVAL_YM => {

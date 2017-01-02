@@ -71,7 +71,6 @@ pub trait DescriptorType {
 #[derive(Debug)] pub enum OCIParam {}             impl DescriptorType for OCIParam              { const ID: Descriptor = Descriptor::Param; }
 #[derive(Debug)] pub enum OCIComplexObjectComp {} impl DescriptorType for OCIComplexObjectComp  { const ID: Descriptor = Descriptor::ComplexObjectComp; }
 #[derive(Debug)] pub enum OCIRowid {}             impl DescriptorType for OCIRowid              { const ID: Descriptor = Descriptor::RowID; }
-#[derive(Debug)] pub enum OCIDateTime {}          impl DescriptorType for OCIDateTime           { const ID: Descriptor = Descriptor::Timestamp; }//FIXME: Может также быть и Date, TimestampWithTZ, TimestampWithLTZ
 #[derive(Debug)] pub enum OCIUcb {}               impl DescriptorType for OCIUcb                { const ID: Descriptor = Descriptor::UCB; }
 #[derive(Debug)] pub enum OCIServerDNs {}         impl DescriptorType for OCIServerDNs          { const ID: Descriptor = Descriptor::ServerDN; }
 
@@ -80,14 +79,6 @@ pub trait DescriptorType {
 pub trait OCILobLocator : DescriptorType {}
 descriptor!(OCILobLocator, Lob);
 descriptor!(OCILobLocator, File);
-
-pub trait OCIDateTime : DescriptorType {}
-descriptor!(OCIDateTime, Date);
-//descriptor!(OCIDateTime, Time);
-//descriptor!(OCIDateTime, TimeWithTZ);
-descriptor!(OCIDateTime, Timestamp);
-descriptor!(OCIDateTime, TimestampWithTZ);
-descriptor!(OCIDateTime, TimestampWithLTZ);
 */
 /*
 #[derive(Debug)]

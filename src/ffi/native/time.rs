@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/oci-date-datetime-and-interval-functions.htm
 
-use std::os::raw::{c_int, c_void};
+use std::os::raw::{c_uchar, c_short, c_int, c_uint, c_void};
 
 use Result;
 use ffi::Handle;
@@ -43,7 +43,63 @@ pub struct OCIDate {
   pub dd: u8,
   pub time: OCITime,
 }
+impl Default for OCIDate {
+  fn default() -> Self {
+    OCIDate { yyyy: 1, mm: 1, dd: 1, time: Default::default() }
+  }
+}
 
+pub trait OCIDateTime : DescriptorType {}
+descriptor!(OCIDateTime, Date);
+//descriptor!(OCIDateTime, Time);
+//descriptor!(OCIDateTime, TimeWithTZ);
+descriptor!(OCIDateTime, Timestamp);
+descriptor!(OCIDateTime, TimestampWithTZ);
+descriptor!(OCIDateTime, TimestampWithLTZ);
+
+pub fn get_date<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(i16, u8, u8)> {
+  let mut yyyy: i16 = 0;
+  let mut mm: u8 = 0;
+  let mut dd: u8 = 0;
+  let res = unsafe {
+    OCIDateTimeGetDate(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut(),
+      datetime as *const T as *const c_void,
+      &mut yyyy,
+      &mut mm,
+      &mut dd,
+    )
+  };
+  match res {
+    0 => Ok((yyyy, mm, dd)),
+    e => Err(err.decode(e))
+  }
+}
+
+pub fn get_time<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(u8, u8, u8, u32)> {
+  let mut hh: u8 = 0;
+  let mut mm: u8 = 0;
+  let mut ss: u8 = 0;
+  let mut ns: u32 = 0;
+  let res = unsafe {
+    OCIDateTimeGetTime(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut(),
+      datetime as *const T as *mut c_void,
+      &mut hh,
+      &mut mm,
+      &mut ss,
+      &mut ns,
+    )
+  };
+  match res {
+    0 => Ok((hh, mm, ss, ns)),
+    e => Err(err.decode(e))
+  }
+}
+
+//-------------------------------------------------------------------------------------------------
 pub trait OCIInterval : DescriptorType {}
 descriptor!(OCIInterval, IntervalYM);
 descriptor!(OCIInterval, IntervalDS);
@@ -104,6 +160,70 @@ pub fn to_number<T: OCIInterval>(hndl: &Handle<OCISession>, err: &Handle<OCIErro
 #[cfg_attr(windows, link(name = "oci"))]
 #[cfg_attr(not(windows), link(name = "clntsh"))]
 extern "C" {
+  /// Gets the date (year, month, day) portion of a datetime value.
+  ///
+  /// # Comments
+  /// This function gets the date (year, month, day) portion of a datetime value.
+  ///
+  /// # Parameters
+  /// - hndl (IN):
+  ///   The OCI user session handle or environment handle.
+  ///- err (IN/OUT):
+  ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
+  ///   Obtain diagnostic information by calling `OCIErrorGet()`.
+  /// - datetime (IN):
+  ///   Pointer to an OCIDateTime descriptor from which date information is retrieved.
+  /// - year (OUT):
+  /// - month (OUT):
+  /// - day (OUT):
+  ///   The retrieved year, month, and day values.
+  ///
+  /// # Returns
+  /// `OCI_SUCCESS`; or `OCI_ERROR`, if the input type is `SQLT_TIME` or `OCI_TIME_TZ`.
+  fn OCIDateTimeGetDate(hndl: *mut c_void,
+                        err: *mut OCIError,
+                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                        datetime: *const c_void/*OCIDateTime*/,
+                        year: *mut c_short,
+                        month: *mut c_uchar,
+                        day: *mut c_uchar) -> c_int;
+
+  /// Gets the time (hour, min, second, fractional second) of a datetime value.
+  ///
+  /// # Parameters
+  /// - hndl (IN):
+  ///   The OCI user session handle or environment handle.
+  /// - err (IN/OUT):
+  ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
+  ///   Obtain diagnostic information by calling `OCIErrorGet()`.
+  /// - datetime (IN):
+  ///   Pointer to an OCIDateTime descriptor from which time information is retrieved.
+  /// - hour (OUT):
+  ///   The retrieved hour value.
+  /// - min (OUT):
+  ///   The retrieved minute value.
+  /// - sec (OUT):
+  ///   The retrieved second value.
+  /// - fsec (OUT):
+  ///   The retrieved fractional second value.
+  /// 
+  /// # Comments
+  /// This function gets the time portion (hour, min, second, fractional second) from a given datetime value.
+  /// 
+  /// This function returns an error if the given datetime does not contain time information.
+  /// 
+  /// # Returns
+  /// `OCI_SUCCESS`; or `OCI_ERROR`, if datetime does not contain time (`SQLT_DATE`).
+  fn OCIDateTimeGetTime(hndl: *mut c_void,
+                        err: *mut OCIError,
+                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                        datetime: *mut c_void/*OCIDateTime*/,
+                        hour: *mut c_uchar,
+                        min: *mut c_uchar,
+                        sec: *mut c_uchar,
+                        fsec: *mut c_uint) -> c_int;
+
+//-------------------------------------------------------------------------------------------------
   /// Gets values of day, hour, minute, and second from an interval.
   /// 
   /// # Parameters
