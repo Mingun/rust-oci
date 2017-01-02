@@ -12,7 +12,7 @@ use types::{FromDB, Type, Syntax};
 
 use ffi::native::time::{IntervalYM, IntervalDS};
 
-use super::{Descriptor, Handle};
+use super::{Descriptor, GenericDescriptor, Handle};
 use super::attr::AttrHolder;
 use super::native::{OCIParam, OCIStmt, OCIBind, OCIDateTime, OCIError};// FFI типы
 use super::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
@@ -277,19 +277,14 @@ enum Storage<'d> {
     /// Количество байт, реально используемое для хранения данных.
     size: c_ushort,
   },
-  /// Хранит дескриптор для получения значений столбцов с датами
-  Time(Descriptor<'d, OCIDateTime>),
-  IntervalYM(Descriptor<'d, IntervalYM>),
-  IntervalDS(Descriptor<'d, IntervalDS>),
+  Descriptor(GenericDescriptor<'d>),
 }
 impl<'d> Storage<'d> {
   /// Получает адрес блока памяти, который можно использовать для записи в него значений
   fn as_ptr(&mut self) -> *mut c_void {
     match *self {
       Storage::Vec { ptr, .. } => ptr as *mut c_void,
-      Storage::Time(ref mut d) => d.address_mut(),
-      Storage::IntervalYM(ref mut d) => d.address_mut(),
-      Storage::IntervalDS(ref mut d) => d.address_mut(),
+      Storage::Descriptor(ref mut d) => d.address_mut(),
     }
   }
   /// Получает вместимость буфера
@@ -309,9 +304,7 @@ impl<'d> Storage<'d> {
   fn as_slice(&self) -> &[u8] {
     match *self {
       Storage::Vec { ptr, size, .. } => unsafe { slice::from_raw_parts(ptr, size as usize) },
-      Storage::Time(ref d) => d.as_slice(),
-      Storage::IntervalYM(ref d) => d.as_slice(),
-      Storage::IntervalDS(ref d) => d.as_slice(),
+      Storage::Descriptor(ref d) => d.as_slice(),
     }
   }
 }
@@ -323,19 +316,9 @@ impl<'d> From<Vec<u8>> for Storage<'d> {
     res
   }
 }
-impl<'d> From<Descriptor<'d, OCIDateTime>> for Storage<'d> {
-  fn from(backend: Descriptor<'d, OCIDateTime>) -> Self {
-    Storage::Time(backend)
-  }
-}
-impl<'d> From<Descriptor<'d, IntervalYM>> for Storage<'d> {
-  fn from(backend: Descriptor<'d, IntervalYM>) -> Self {
-    Storage::IntervalYM(backend)
-  }
-}
-impl<'d> From<Descriptor<'d, IntervalDS>> for Storage<'d> {
-  fn from(backend: Descriptor<'d, IntervalDS>) -> Self {
-    Storage::IntervalDS(backend)
+impl<'d, T: DescriptorType> From<Descriptor<'d, T>> for Storage<'d> {
+  fn from(backend: Descriptor<'d, T>) -> Self {
+    Storage::Descriptor(backend.into())
   }
 }
 impl<'d> Drop for Storage<'d> {

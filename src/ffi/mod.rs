@@ -17,7 +17,7 @@ mod server;
 pub use self::env::Env;
 pub use self::server::Server;
 pub use self::handle::Handle;
-pub use self::descriptor::Descriptor;
+pub use self::descriptor::{Descriptor, GenericDescriptor};
 
 fn check(native: c_int) -> Result<()> {
   return match native {
