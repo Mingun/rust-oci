@@ -1,24 +1,28 @@
 
-use std::os::raw::{c_int, c_uint};
-use std::ptr;
+use std::os::raw::c_uint;
+
 use Result;
 use params::{ConnectParams, Credentials};
-use types::{AttachMode, AuthMode, CreateMode};
+use types::{AuthMode, CreateMode};
 
 mod attr;
 mod base;
-mod descriptor;
 mod env;
+mod handle;
+mod descriptor;
+mod server;
 mod stmt;
 mod types;
 mod native;
 
-pub use self::descriptor::Descriptor;
 pub use self::env::Env;
+pub use self::handle::Handle;
+pub use self::server::Server;
+pub use self::descriptor::Descriptor;
+
 pub use self::types::{MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
 use self::native::*;
-use self::base::Handle;
 use self::base::AttrHolder;
 use self::stmt::StatementPrivate;
 
@@ -41,62 +45,26 @@ impl<'e> Environment<'e> {
     Ok(Environment { env: env, error: err })
   }
   /// Осуществляет подключение к базе данных с указанными параметрами
+  #[inline]
   pub fn connect<P: Into<ConnectParams>>(&self, params: P) -> Result<Connection> {
     Connection::new(&self, &params.into())
   }
+  #[inline]
   fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.handle(self.error.native_mut())
   }
+  #[inline]
   fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
     Descriptor::new(&self)
   }
+  /// Получает хендл для записи ошибок во время общения с базой данных. В случае возникновения ошибки при вызове
+  /// FFI-функции она может быть получена из хендла с помощью вызова `decode(ffi_result)`.
+  #[inline]
   fn error(&self) -> &Handle<OCIError> {
     &self.error
   }
 }
-//-------------------------------------------------------------------------------------------------
-/// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
-#[derive(Debug)]
-struct Server<'env> {
-  env: &'env Environment<'env>,
-  handle: Handle<OCIServer>,
-  mode: AttachMode,
-}
-impl<'env> Server<'env> {
-  fn new<'e>(env: &'e Environment, dblink: Option<&str>, mode: AttachMode) -> Result<Server<'e>> {
-    let server: Handle<OCIServer> = try!(env.handle());
-    let (ptr, len) = match dblink {
-      Some(db) => (db.as_ptr(), db.len()),
-      None => (ptr::null(), 0)
-    };
-    let res = unsafe {
-      OCIServerAttach(
-        server.native_mut(), env.error.native_mut(),
-        ptr, len as c_int,
-        mode as c_uint
-      )
-    };
-    return match res {
-      0 => Ok(Server { env: env, handle: server, mode: mode }),
-      e => Err(env.error.decode(e))
-    };
-  }
-  fn error(&self) -> &Handle<OCIError> {
-    self.env.error()
-  }
-}
-impl<'env> Drop for Server<'env> {
-  fn drop(&mut self) {
-    let res = unsafe {
-      OCIServerDetach(
-        self.handle.native_mut(),
-        self.error().native_mut(),
-        self.mode as c_uint
-      )
-    };
-    self.error().check(res).expect("OCIServerDetach");
-  }
-}
+
 //-------------------------------------------------------------------------------------------------
 /// Представляет соединение к базе данных, с определенным пользователем и паролем.
 /// Соединение зависит от окружения, создавшего его, таким образом, окружение является менеджером
@@ -135,7 +103,7 @@ impl<'env> Connection<'env> {
     };
 
     // Ассоциируем сервер с контекстом и осуществляем подключение
-    try!(context.set_handle(&server.handle, types::Attr::Server, &env.error));
+    try!(context.set_handle(server.handle(), types::Attr::Server, &env.error));
     let res = unsafe {
       OCISessionBegin(
         context.native_mut(),

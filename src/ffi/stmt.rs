@@ -356,12 +356,12 @@ impl<'d> DefineInfo<'d> {
       Type::TIMESTAMP |
       Type::TIMESTAMP_TZ |
       Type::TIMESTAMP_LTZ => {
-        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.env.descriptor());
+        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.descriptor());
         Ok(d.into())
       },
       Type::INTERVAL_YM |
       Type::INTERVAL_DS => {
-        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.env.descriptor());
+        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.descriptor());
         Ok(d.into())
       }
       _ => Ok(Vec::with_capacity(column.size).into()),
