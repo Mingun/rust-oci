@@ -12,3 +12,7 @@ keywords = ["binding", "database", "oracle", "oci", "sql"]
 [dependencies]
 num-integer = "*"
 num-traits = "*"
+chrono = { version = "0.2", optional = true }
+
+[features]
+with-chrono = ["chrono"]
