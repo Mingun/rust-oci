@@ -1,23 +1,47 @@
 //! Поддержка столбцов с датой и временем из ящика `chrono`.
 extern crate chrono;
 
-use self::chrono::{Duration, NaiveDate, NaiveTime, NaiveDateTime};
+use self::chrono::{NaiveDate, NaiveTime, NaiveDateTime};  // простые конвертации
+use self::chrono::{Date, DateTime, TimeZone, FixedOffset, UTC};// с учетом часовых поясов
+use self::chrono::Duration;// продолжительности времени
 
 use {Connection, Result};
 use error::Error;
 use types::{FromDB, Type};
 
-use ffi::native::time::{get_date, get_time, Timestamp};
+use ffi::native::time::{get_date, get_time, get_time_offset, OCIDateTime, Timestamp, TimestampWithTZ, TimestampWithLTZ};
 use ffi::native::time::{get_day_second, IntervalDS};
+
+/// Вспомогательная функция для формирования даты без знаний о часовом поясе из оракловских данных
+fn to_naive_date<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<NaiveDate> {
+  let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), timestamp));
+
+  Ok(NaiveDate::from_ymd(yyyy as i32, MM as u32, dd as u32))
+}
+/// Вспомогательная функция для формирования времени без знаний о часовом поясе из оракловских данных
+fn to_naive_time<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<NaiveTime> {
+  let (hh, mm, ss, ns) = try!(get_time(&conn.session, conn.error(), timestamp));
+
+  Ok(NaiveTime::from_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
+}
+/// Вспомогательная функция для формирования часового пояса из оракловских данных
+fn to_tz<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<FixedOffset> {
+  let (hh, mm) = try!(get_time_offset(&conn.session, conn.error(), timestamp));
+  let offset = Duration::hours(hh as i64) + Duration::minutes(mm as i64);
+/*FIXME: Добавить проверку на выход за границу диапазона
+  if offset.num_seconds() > i32::MAX as i64
+  || offset.num_seconds() < i32::MIN as i64 {
+    return Err(Error::Conversion())
+  }*/
+  Ok(FixedOffset::east(offset.num_seconds() as i32))
+}
 
 impl FromDB for NaiveDate {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
-      Type::TIMESTAMP => {
+      Type::TIMESTAMP => {// Время в некоем неизвестном часовом поясе
         let t: &Timestamp = unsafe { conn.as_descriptor(raw) };
-        let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), t));
-
-        Ok(NaiveDate::from_ymd(yyyy as i32, MM as u32, dd as u32))
+        to_naive_date(conn, t)
       },
       t => Err(Error::Conversion(t)),
     }
@@ -26,11 +50,9 @@ impl FromDB for NaiveDate {
 impl FromDB for NaiveTime {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
-      Type::TIMESTAMP => {
+      Type::TIMESTAMP => {// Время в некоем неизвестном часовом поясе
         let t: &Timestamp = unsafe { conn.as_descriptor(raw) };
-        let (hh, mm, ss, ns) = try!(get_time(&conn.session, conn.error(), t));
-
-        Ok(NaiveTime::from_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
+        to_naive_time(conn, t)
       },
       t => Err(Error::Conversion(t)),
     }
@@ -44,7 +66,52 @@ impl FromDB for NaiveDateTime {
     Ok(NaiveDateTime::new(date, time))
   }
 }
+//-------------------------------------------------------------------------------------------------
+impl FromDB for Date<FixedOffset> {
+  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
+    match ty {
+      Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
+        let t: &TimestampWithTZ = unsafe { conn.as_descriptor(raw) };
+        let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), t));
+        let tz = try!(to_tz(conn, t));
 
+        Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32))
+      },
+      t => Err(Error::Conversion(t)),
+    }
+  }
+}
+impl FromDB for DateTime<FixedOffset> {
+  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
+    match ty {
+      Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
+        let t: &TimestampWithTZ = unsafe { conn.as_descriptor(raw) };
+        let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), t));
+        let (hh, mm, ss, ns) = try!(get_time(&conn.session, conn.error(), t));
+        let tz = try!(to_tz(conn, t));
+
+        Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32).and_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
+      },
+      t => Err(Error::Conversion(t)),
+    }
+  }
+}
+//-------------------------------------------------------------------------------------------------
+impl FromDB for Date<UTC> {
+  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
+    let time = try!(Date::<FixedOffset>::from_db(ty, raw, conn));
+
+    Ok(time.with_timezone(&UTC))
+  }
+}
+impl FromDB for DateTime<UTC> {
+  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
+    let time = try!(DateTime::<FixedOffset>::from_db(ty, raw, conn));
+
+    Ok(time.with_timezone(&UTC))
+  }
+}
+//-------------------------------------------------------------------------------------------------
 impl FromDB for Duration {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {

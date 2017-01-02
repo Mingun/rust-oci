@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/oci-date-datetime-and-interval-functions.htm
 
-use std::os::raw::{c_uchar, c_short, c_int, c_uint, c_void};
+use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
 
 use Result;
 use ffi::Handle;
@@ -95,6 +95,23 @@ pub fn get_time<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError
   };
   match res {
     0 => Ok((hh, mm, ss, ns)),
+    e => Err(err.decode(e))
+  }
+}
+pub fn get_time_offset<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(i8, i8)> {
+  let mut hh: i8 = 0;
+  let mut mm: i8 = 0;
+  let res = unsafe {
+    OCIDateTimeGetTimeZoneOffset(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut(),
+      datetime as *const T as *mut c_void,
+      &mut hh,
+      &mut mm,
+    )
+  };
+  match res {
+    0 => Ok((hh, mm)),
     e => Err(err.decode(e))
   }
 }
@@ -222,6 +239,34 @@ extern "C" {
                         min: *mut c_uchar,
                         sec: *mut c_uchar,
                         fsec: *mut c_uint) -> c_int;
+  /// Gets the time zone (hour, minute) portion of a datetime value.
+  ///
+  /// # Parameters
+  /// - hndl (IN):
+  ///   The OCI user session handle or environment handle.
+  /// - err (IN/OUT)
+  ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
+  ///   Obtain diagnostic information by calling `OCIErrorGet()`.
+  /// - datetime (IN):
+  ///   Pointer to an OCIDateTime descriptor.
+  /// - hour (OUT):
+  ///   The retrieved time zone hour value.
+  /// - min (OUT):
+  ///   The retrieved time zone minute value.
+  /// 
+  /// # Comments
+  /// This function gets the time zone hour and the time zone minute portion from a given datetime value.
+  /// 
+  /// This function returns an error if the given datetime does not contain time information.
+  /// 
+  /// # Returns
+  /// `OCI_SUCCESS`; or `OCI_ERROR`, if datetime does not contain a time zone (`SQLT_DATE`, `SQLT_TIMESTAMP`).
+  fn OCIDateTimeGetTimeZoneOffset(hndl: *mut c_void,
+                                  err: *mut OCIError,
+                                  // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                                  datetime: *const c_void/*OCIDateTime*/,
+                                  hour: *mut c_char,
+                                  min: *mut c_char) -> c_int;
 
 //-------------------------------------------------------------------------------------------------
   /// Gets values of day, hour, minute, and second from an interval.

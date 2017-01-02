@@ -231,6 +231,9 @@ impl<'e> Drop for Connection<'e> {
 
 #[cfg(test)]
 mod tests {
+  #[cfg(feature = "with-chrono")]
+  extern crate chrono;
+
   use std::env;
   use super::*;
   use params::*;
@@ -269,10 +272,37 @@ mod tests {
     for col in &columns {
       println!("col: {:?}", col);
     }
+
     println!("Now values:");
     for row in rs {
       let user: Result<Option<String>> = row.get(&columns[0], &conn);
       println!("row: user: {:?}", user);
     }
+  }
+  #[cfg(feature = "with-chrono")]
+  fn print_naive(row: &Row, col: &Column, conn: &Connection) {
+    let time0: Result<Option<chrono::NaiveDate>> = row.get(col, conn);
+    let time1: Result<Option<chrono::NaiveTime>> = row.get(col, conn);
+    let time2: Result<Option<chrono::NaiveDateTime>> = row.get(col, conn);
+
+    println!("column: {:?}", col);
+    println!("chrono::date: {:?}", time0);
+    println!("chrono::time: {:?}", time1);
+    println!("chrono::datetime: {:?}", time2);
+    println!();
+  }
+  #[cfg(feature = "with-chrono")]
+  fn print_with_tz<Tz>(row: &Row, col: &Column, conn: &Connection)
+    where Tz: chrono::TimeZone,
+          chrono::Date<Tz>: FromDB,
+          chrono::DateTime<Tz>: FromDB
+  {
+    let time0: Result<Option<chrono::Date<Tz>>> = row.get(col, conn);
+    let time2: Result<Option<chrono::DateTime<Tz>>> = row.get(col, conn);
+
+    println!("column: {:?}", col);
+    println!("chrono::date: {:?}", time0);
+    println!("chrono::datetime: {:?}", time2);
+    println!();
   }
 }
