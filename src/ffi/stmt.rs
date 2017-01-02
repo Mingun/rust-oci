@@ -79,6 +79,7 @@ pub struct Statement<'conn, 'key> {
   key: Option<&'key str>,
 }
 impl<'conn, 'key> Statement<'conn, 'key> {
+  #[inline]
   fn error(&self) -> &Handle<OCIError> {
     self.conn.error()
   }
@@ -199,9 +200,11 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     };
     self.error().check(res)
   }
+  #[inline]
   fn param_count(&self) -> Result<c_uint> {
     self.get_(Attr::ParamCount, self.error())
   }
+  #[inline]
   fn param_get(&self, pos: c_uint) -> Result<Descriptor<OCIParam>> {
     param_get(self.native, pos, self.error())
   }
@@ -357,12 +360,12 @@ impl<'d> DefineInfo<'d> {
       Type::TIMESTAMP |
       Type::TIMESTAMP_TZ |
       Type::TIMESTAMP_LTZ => {
-        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.descriptor());
+        let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.new_descriptor());
         Ok(d.into())
       },
       Type::INTERVAL_YM |
       Type::INTERVAL_DS => {
-        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.descriptor());
+        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.new_descriptor());
         Ok(d.into())
       }
       _ => Ok(Vec::with_capacity(column.size).into()),

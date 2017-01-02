@@ -59,7 +59,7 @@ impl<'e> Environment<'e> {
   /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-B7BC5F9E-811C-490A-B308-472A12D690D2
   pub fn new(mode: CreateMode) -> Result<Self> {
     let mut env = try!(Env::new(mode));
-    let err: Handle<OCIError> = try!(env.error_handle());
+    let err: Handle<OCIError> = try!(env.new_error_handle());
 
     Ok(Environment { env: env, error: err })
   }
@@ -76,11 +76,11 @@ impl<'e> Environment<'e> {
     Connection::new(&self, &params.into())
   }
   #[inline]
-  fn handle<T: HandleType>(&self) -> Result<Handle<T>> {
-    self.env.handle(self.error.native_mut())
+  fn new_handle<T: HandleType>(&self) -> Result<Handle<T>> {
+    self.env.new_handle(self.error.native_mut())
   }
   #[inline]
-  fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+  fn new_descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
     Descriptor::new(&self)
   }
   /// Получает хендл для записи ошибок во время общения с базой данных. В случае возникновения ошибки при вызове
@@ -121,8 +121,8 @@ pub struct Connection<'e> {
 impl<'e> Connection<'e> {
   fn new(env: &'e Environment, params: &ConnectParams) -> Result<Self> {
     let server = try!(Server::new(env, Some(&params.dblink), params.attach_mode));
-    let mut context: Handle<OCISvcCtx > = try!(env.handle());
-    let mut session: Handle<OCISession> = try!(env.handle());
+    let mut context: Handle<OCISvcCtx > = try!(env.new_handle());
+    let mut session: Handle<OCISession> = try!(env.new_handle());
 
     let credMode = match params.credentials {
       Credentials::Rdbms { ref username, ref password } => {

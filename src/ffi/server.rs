@@ -7,7 +7,7 @@ use types::AttachMode;
 use super::{Handle, Descriptor};
 use super::native::{OCIServer, OCIError};// FFI типы
 use super::native::{OCIServerAttach, OCIServerDetach};// FFI функции
-use super::native::DescriptorType;// Типажи для безопасного моста к FFI
+use super::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
 //-------------------------------------------------------------------------------------------------
 /// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
 #[derive(Debug)]
@@ -20,7 +20,7 @@ pub struct Server<'env> {
 impl<'env> Server<'env> {
   /// Осуществляет подключение к указанному серверу в рамках данного окружения
   pub fn new(env: &'env Environment, dblink: Option<&str>, mode: AttachMode) -> Result<Self> {
-    let server: Handle<OCIServer> = try!(env.handle());
+    let server: Handle<OCIServer> = try!(env.new_handle());
     let (ptr, len) = match dblink {
       Some(db) => (db.as_ptr(), db.len()),
       None => (ptr::null(), 0)
@@ -37,16 +37,20 @@ impl<'env> Server<'env> {
       e => Err(env.error.decode(e))
     };
   }
+  #[inline]
+  pub fn new_handle<T: HandleType>(&self) -> Result<Handle<T>> {
+    self.env.new_handle()
+  }
+  #[inline]
+  pub fn new_descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+    self.env.new_descriptor()
+  }
   /// Получает хендл для записи ошибок во время общения с базой данных. Хендл берется из окружения, которое породило
   /// данный сервер. В случае возникновения ошибки при вызове FFI-функции она может быть получена из хендла с помощью
   /// вызова `decode(ffi_result)`.
   #[inline]
   pub fn error(&self) -> &Handle<OCIError> {
     self.env.error()
-  }
-  #[inline]
-  pub fn descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
-    self.env.descriptor()
   }
   #[inline]
   pub fn handle(&self) -> &Handle<OCIServer> {

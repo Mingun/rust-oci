@@ -45,12 +45,12 @@ impl<'e> Env<'e> {
   /// - err:
   ///   Хендл для сбора ошибок, куда будет записана ошибка в случае, если создание хендла окажется неудачным
   #[inline]
-  pub fn handle<T: HandleType, E: ErrorHandle>(&self, err: *mut E) -> Result<Handle<T>> {
+  pub fn new_handle<T: HandleType, E: ErrorHandle>(&self, err: *mut E) -> Result<Handle<T>> {
     Handle::new(&self, err)
   }
   #[inline]
-  pub fn error_handle(&mut self) -> Result<Handle<OCIError>> {
-    self.handle(self.native as *mut OCIEnv)
+  pub fn new_error_handle(&mut self) -> Result<Handle<OCIError>> {
+    self.new_handle(self.native as *mut OCIEnv)
   }
   /// Получает голый указатель на хендл окружения, используемый для передачи в нативные функции.
   #[inline]
