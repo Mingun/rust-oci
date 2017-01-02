@@ -7,14 +7,18 @@ use types::{AttachMode, AuthMode, CreateMode};
 
 mod attr;
 mod base;
+mod descriptor;
+mod env;
 mod stmt;
 mod types;
 mod native;
 
+pub use self::descriptor::Descriptor;
+pub use self::env::Env;
 pub use self::types::{MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
 use self::native::*;
-use self::base::{Handle, Descriptor, Env};
+use self::base::Handle;
 use self::base::AttrHolder;
 use self::stmt::StatementPrivate;
 
@@ -31,8 +35,8 @@ pub struct Environment<'e> {
 }
 impl<'e> Environment<'e> {
   pub fn new(mode: CreateMode) -> Result<Self> {
-    let env = try!(Env::new(mode));
-    let err: Handle<OCIError> = try!(env.handle(env.native_mut()));
+    let mut env = try!(Env::new(mode));
+    let err: Handle<OCIError> = try!(env.error_handle());
 
     Ok(Environment { env: env, error: err })
   }

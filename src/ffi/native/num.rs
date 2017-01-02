@@ -14,8 +14,8 @@ use types::{FromDB, Type};
 use error::Error;
 
 use super::OCIError;
+use super::super::Handle;
 use super::super::types::NumberFlag;
-use super::super::base::Handle;
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]

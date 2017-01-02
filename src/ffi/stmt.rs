@@ -10,7 +10,7 @@ use error::Error::Db;
 use error::DbError::NoData;
 use types::{FromDB, Type};
 
-use super::base::{Descriptor, Handle};
+use super::{Descriptor, Handle};
 use super::base::AttrHolder;
 use super::native::*;
 use super::types::Attr;

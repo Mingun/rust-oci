@@ -2,7 +2,6 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::fmt;
 use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint};
-use std::marker::PhantomData;
 use std::mem;
 use std::ptr;
 use std::slice;
@@ -10,12 +9,11 @@ use num_integer::Integer;
 
 use Result;
 use error::{DbError, Error};
-use types::CreateMode;
 
-use super::native::{DescriptorType, HandleType, ErrorHandle};
-use super::native::{OCIError, OCIEnv};
-use super::native::{OCIHandleAlloc, OCIHandleFree, OCIDescriptorAlloc, OCIDescriptorFree, OCIEnvNlsCreate, OCITerminate, OCIAttrGet, OCIAttrSet, OCIErrorGet};
-use super::Environment;
+use super::native::{HandleType, ErrorHandle};
+use super::native::OCIError;
+use super::native::{OCIHandleAlloc, OCIHandleFree, OCIAttrGet, OCIAttrSet, OCIErrorGet};
+use super::Env;
 use super::types;
 
 //-------------------------------------------------------------------------------------------------
@@ -76,7 +74,7 @@ fn decode_error<T: ErrorHandle>(handle: Option<*mut T>, result: c_int) -> DbErro
     e => DbError::Unknown(e as isize),
   }
 }
-fn check(native: c_int) -> Result<()> {
+pub fn check(native: c_int) -> Result<()> {
   return match native {
     0 => Ok(()),
     e => Err(Error::Db(DbError::Unknown(e as isize)))
@@ -165,7 +163,7 @@ impl<T: HandleType> Handle<T> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIHandleAlloc(
-        env.native as *const c_void,
+        env.native() as *const c_void,
         &mut handle, T::ID as c_uint,
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделенное под них место
       )
@@ -218,122 +216,5 @@ impl Handle<OCIError> {
       0 => Ok(()),
       e => Err(self.decode(e)),
     }
-  }
-}
-//-------------------------------------------------------------------------------------------------
-/// Автоматически освобождаемый дескриптор ресурсов оракла
-pub struct Descriptor<'d, T: 'd + DescriptorType> {
-  native: *const T,
-  phantom: PhantomData<&'d T>,
-}
-impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
-  pub fn new<'e>(env: &'e Environment) -> Result<Descriptor<'e, T>> {
-    let mut desc = ptr::null_mut();
-    let res = unsafe {
-      OCIDescriptorAlloc(
-        env.env.native as *const c_void,
-        &mut desc, T::ID as c_uint,
-        0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделенное под них место
-      )
-    };
-    Self::from_ptr(res, desc as *const T, env.error())
-  }
-  pub fn from_ptr<'e>(res: c_int, native: *const T, err: &Handle<OCIError>) -> Result<Descriptor<'e, T>> {
-    match res {
-      0 => Ok(Descriptor { native: native, phantom: PhantomData }),
-      e => Err(err.decode(e)),
-    }
-  }
-  pub fn address_mut(&mut self) -> *mut c_void {
-    &mut self.native as *mut *const T as *mut c_void
-  }
-  pub fn as_slice(&self) -> &[u8] {
-    unsafe {
-      slice::from_raw_parts(
-        &self.native as *const *const T as *const u8,
-        mem::size_of::<*const T>()
-      )
-    }
-  }
-}
-impl<'d, T: 'd + DescriptorType> Drop for Descriptor<'d, T> {
-  fn drop(&mut self) {
-    let res = unsafe { OCIDescriptorFree(self.native as *mut c_void, T::ID as c_uint) };
-    //FIXME: Необходимо получать точную причину ошибки, а для этого нужна ссылка на OCIError.
-    // Однако тащить ее в дескриптор нельзя, т.к. данная структура должна быть легкой
-    check(res).expect("OCIDescriptorFree");
-  }
-}
-impl<'d, T: 'd + DescriptorType> fmt::Debug for Descriptor<'d, T> {
-  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-    fmt.debug_tuple("Descriptor")
-       .field(&T::ID)
-       .field(&self.native)
-       .finish()
-  }
-}
-impl<'d, T: 'd + DescriptorType> AttrHolder<T> for Descriptor<'d, T> {
-  fn holder_type() -> c_uint {
-    T::ID as c_uint
-  }
-
-  fn native(&self) -> *const T {
-    self.native
-  }
-}
-
-//-------------------------------------------------------------------------------------------------
-/// Автоматически закрываемый хендл окружения оракла
-pub struct Env<'e> {
-  native: *const OCIEnv,
-  mode: CreateMode,
-  /// Фантомные данные для статического анализа управления временем жизни окружения. Эмулирует владение
-  /// указателем `native` структуры.
-  phantom: PhantomData<&'e OCIEnv>,
-}
-impl<'e> Env<'e> {
-  pub fn new(mode: CreateMode) -> Result<Self> {
-    let mut handle = ptr::null_mut();
-    let res = unsafe {
-      OCIEnvNlsCreate(
-        &mut handle, // сюда записывается результат
-        mode as c_uint,
-        0 as *mut c_void, // Контекст для функций управления памятью.
-        None, None, None, // Функции управления памятью
-        0, 0 as *mut *mut c_void,// размер пользовательских данных и указатель на выделенное под них место
-        0, 0// Параметры локализации для типов CHAR и NCHAR. 0 - использовать настройку NLS_LANG
-      )
-    };
-    return match res {
-      0 => Ok(Env { native: handle, mode: mode, phantom: PhantomData }),
-      // Ошибки создания окружения никуда не записываются, т.к. им просто некуда еще записываться
-      e => Err(Error::Db(DbError::Unknown(e as isize)))
-    };
-  }
-  /// Создает новый хендл в указанном окружении запрашиваемого типа
-  ///
-  /// # Параметры
-  /// - err:
-  ///   Хендл для сбора ошибок, куда будет записана ошибка в случае, если создание хендла окажется неудачным
-  pub fn handle<T: HandleType, E: ErrorHandle>(&self, err: *mut E) -> Result<Handle<T>> {
-    Handle::new(&self, err)
-  }
-  pub fn native_mut(&self) -> *mut OCIEnv {
-    self.native as *mut OCIEnv
-  }
-}
-impl<'e> Drop for Env<'e> {
-  fn drop(&mut self) {
-    let res = unsafe { OCITerminate(self.mode as c_uint) };
-    // Получить точную причину ошибки в этом месте нельзя, т.к. все структуры уже разрушены
-    check(res).expect("OCITerminate");
-  }
-}
-impl<'e> fmt::Debug for Env<'e> {
-  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-    fmt.debug_tuple("Env")
-       .field(&self.native)
-       .field(&self.mode)
-       .finish()
   }
 }
