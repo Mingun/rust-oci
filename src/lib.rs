@@ -21,10 +21,10 @@ pub use ffi::stmt::{Column, Statement, RowSet, Row};
 use std::os::raw::c_uint;
 
 use params::{ConnectParams, Credentials};
-use types::{CreateMode, AuthMode};
+use types::{CreateMode, AuthMode, Syntax};
 
 use ffi::{Env, Server, Handle, Descriptor};
-use ffi::types::{Attr, CredentialMode, Syntax};
+use ffi::types::{Attr, CredentialMode};
 use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
 use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции
 use ffi::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
@@ -138,7 +138,11 @@ impl<'e> Connection<'e> {
 
   #[inline]
   pub fn prepare(&'e self, sql: &str) -> Result<Statement<'e, 'e>> {
-    Statement::new(&self, sql, None, Syntax::Native)
+    self.prepare_with_syntax(Syntax::default(), sql)
+  }
+  #[inline]
+  pub fn prepare_with_syntax(&'e self, syntax: Syntax, sql: &str) -> Result<Statement<'e, 'e>> {
+    Statement::new(&self, sql, None, syntax)
   }
 }
 impl<'e> Drop for Connection<'e> {

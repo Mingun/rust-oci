@@ -8,7 +8,7 @@ use std::slice;
 use {Connection, Result};
 use error::Error::Db;
 use error::DbError::NoData;
-use types::{FromDB, Type};
+use types::{FromDB, Type, Syntax};
 
 use super::{Descriptor, Handle};
 use super::attr::AttrHolder;
@@ -16,7 +16,7 @@ use super::native::{OCIParam, OCIStmt, OCIBind, OCIDateTime, OCIInterval, OCIErr
 use super::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
 use super::native::{ParamHandle, DescriptorType};// Типажи для безопасного моста к FFI
 use super::types::Attr;
-use super::types::{DefineMode, CachingMode, ExecuteMode, FetchMode, Syntax};
+use super::types::{DefineMode, CachingMode, ExecuteMode, FetchMode};
 
 //-------------------------------------------------------------------------------------------------
 fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCIError>) -> Result<Descriptor<'d, OCIParam>> {

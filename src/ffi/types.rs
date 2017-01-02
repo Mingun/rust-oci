@@ -1,5 +1,4 @@
 
-use std;
 use std::os::raw::{c_int, c_void, c_uchar, c_ulonglong, c_uint};
 
 pub type MallocFn  = extern "C" fn(ctxp: *mut c_void, size: usize) -> *mut c_void;
@@ -224,21 +223,6 @@ pub enum Attr {
   ColEncryptedSalt = 103,
   /// column properties
   ColProps         = 104,
-}
-/// Диалект, используемый для разбора SQL-кода запросов
-#[derive(Clone, Copy, Debug)]
-#[allow(dead_code)]
-pub enum Syntax {
-  /// Syntax depends upon the version of the server.
-  Native = 1,
-  /// V7 ORACLE parsing syntax.
-  V7 = 2,
-  //V8 = 3,
-  /// Specifies the statement to be translated according to the SQL translation profile set in the session.
-  Foreign = std::u32::MAX as isize,
-}
-impl Default for Syntax {
-  fn default() -> Self { Syntax::Native }
 }
 /// Режим кеширования подготавливаемых запросов к базе данных
 #[derive(Clone, Copy, Debug)]

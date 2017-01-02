@@ -1,4 +1,7 @@
+//! Перечисляемые типы данных и типажи, используемые при работе с библиотекой
+
 use std::str;
+use std::u32;
 use {Connection, Result};
 use error::Error;
 
@@ -218,6 +221,24 @@ pub enum AuthMode {
 }
 impl Default for AuthMode {
   fn default() -> Self { AuthMode::Default }
+}
+/// Диалект Oracle-а, используемый для разбора SQL-кода запросов. Рекомендуется всегда использовать нативный для сервера
+/// диалект, он является диалектом по умолчанию при выполнении [`prepare`][1] без параметров.
+///
+/// [1]: ../struct.Connection.html#method.prepare
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub enum Syntax {
+  /// Синтаксис зависит от версии сервера базы данных.
+  Native = 1,
+  /// V7 ORACLE parsing syntax.
+  V7 = 2,
+  //V8 = 3,
+  /// Specifies the statement to be translated according to the SQL translation profile set in the session.
+  Foreign = u32::MAX as isize,
+}
+impl Default for Syntax {
+  fn default() -> Self { Syntax::Native }
 }
 
 /// Преобразует тип базы данных в тип Rust, для которого реализован данный типаж.
