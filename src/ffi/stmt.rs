@@ -10,9 +10,11 @@ use error::Error::Db;
 use error::DbError::NoData;
 use types::{FromDB, Type, Syntax};
 
+use ffi::native::time::{IntervalYM, IntervalDS};
+
 use super::{Descriptor, Handle};
 use super::attr::AttrHolder;
-use super::native::{OCIParam, OCIStmt, OCIBind, OCIDateTime, OCIInterval, OCIError};// FFI типы
+use super::native::{OCIParam, OCIStmt, OCIBind, OCIDateTime, OCIError};// FFI типы
 use super::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
 use super::native::{ParamHandle, DescriptorType};// Типажи для безопасного моста к FFI
 use super::types::Attr;
@@ -277,7 +279,8 @@ enum Storage<'d> {
   },
   /// Хранит дескриптор для получения значений столбцов с датами
   Time(Descriptor<'d, OCIDateTime>),
-  Interval(Descriptor<'d, OCIInterval>),
+  IntervalYM(Descriptor<'d, IntervalYM>),
+  IntervalDS(Descriptor<'d, IntervalDS>),
 }
 impl<'d> Storage<'d> {
   /// Получает адрес блока памяти, который можно использовать для записи в него значений
@@ -285,7 +288,8 @@ impl<'d> Storage<'d> {
     match *self {
       Storage::Vec { ptr, .. } => ptr as *mut c_void,
       Storage::Time(ref mut d) => d.address_mut(),
-      Storage::Interval(ref mut d) => d.address_mut(),
+      Storage::IntervalYM(ref mut d) => d.address_mut(),
+      Storage::IntervalDS(ref mut d) => d.address_mut(),
     }
   }
   /// Получает вместимость буфера
@@ -306,7 +310,8 @@ impl<'d> Storage<'d> {
     match *self {
       Storage::Vec { ptr, size, .. } => unsafe { slice::from_raw_parts(ptr, size as usize) },
       Storage::Time(ref d) => d.as_slice(),
-      Storage::Interval(ref d) => d.as_slice(),
+      Storage::IntervalYM(ref d) => d.as_slice(),
+      Storage::IntervalDS(ref d) => d.as_slice(),
     }
   }
 }
@@ -323,9 +328,14 @@ impl<'d> From<Descriptor<'d, OCIDateTime>> for Storage<'d> {
     Storage::Time(backend)
   }
 }
-impl<'d> From<Descriptor<'d, OCIInterval>> for Storage<'d> {
-  fn from(backend: Descriptor<'d, OCIInterval>) -> Self {
-    Storage::Interval(backend)
+impl<'d> From<Descriptor<'d, IntervalYM>> for Storage<'d> {
+  fn from(backend: Descriptor<'d, IntervalYM>) -> Self {
+    Storage::IntervalYM(backend)
+  }
+}
+impl<'d> From<Descriptor<'d, IntervalDS>> for Storage<'d> {
+  fn from(backend: Descriptor<'d, IntervalDS>) -> Self {
+    Storage::IntervalDS(backend)
   }
 }
 impl<'d> Drop for Storage<'d> {
@@ -363,9 +373,12 @@ impl<'d> DefineInfo<'d> {
         let d: Descriptor<'d, OCIDateTime> = try!(stmt.conn.server.new_descriptor());
         Ok(d.into())
       },
-      Type::INTERVAL_YM |
+      Type::INTERVAL_YM => {
+        let d: Descriptor<'d, IntervalYM> = try!(stmt.conn.server.new_descriptor());
+        Ok(d.into())
+      }
       Type::INTERVAL_DS => {
-        let d: Descriptor<'d, OCIInterval> = try!(stmt.conn.server.new_descriptor());
+        let d: Descriptor<'d, IntervalDS> = try!(stmt.conn.server.new_descriptor());
         Ok(d.into())
       }
       _ => Ok(Vec::with_capacity(column.size).into()),

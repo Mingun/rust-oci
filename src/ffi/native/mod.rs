@@ -1,11 +1,21 @@
 //! Модуль, содержащий код для связывания с C интерфейсом OCI.
 
+macro_rules! descriptor {
+  ($kind:ident, $name:ident) => (
+    #[derive(Debug)]
+    pub enum $name {}
+    impl DescriptorType for $name { const ID: Descriptor = Descriptor::$name; }
+    impl $kind for $name {}
+  );
+}
+
 mod bind;
 mod conn;
 mod hndl;
 mod stmt;
 mod lob;
 mod num;
+pub mod time;
 
 use super::types::Handle;
 use super::types::Descriptor;
@@ -62,21 +72,11 @@ pub trait DescriptorType {
 #[derive(Debug)] pub enum OCIComplexObjectComp {} impl DescriptorType for OCIComplexObjectComp  { const ID: Descriptor = Descriptor::ComplexObjectComp; }
 #[derive(Debug)] pub enum OCIRowid {}             impl DescriptorType for OCIRowid              { const ID: Descriptor = Descriptor::RowID; }
 #[derive(Debug)] pub enum OCIDateTime {}          impl DescriptorType for OCIDateTime           { const ID: Descriptor = Descriptor::Timestamp; }//FIXME: Может также быть и Date, TimestampWithTZ, TimestampWithLTZ
-#[derive(Debug)] pub enum OCIInterval {}          impl DescriptorType for OCIInterval           { const ID: Descriptor = Descriptor::IntervalYM; }//FIXME: Может также быть и IntervalDS
 #[derive(Debug)] pub enum OCIUcb {}               impl DescriptorType for OCIUcb                { const ID: Descriptor = Descriptor::UCB; }
 #[derive(Debug)] pub enum OCIServerDNs {}         impl DescriptorType for OCIServerDNs          { const ID: Descriptor = Descriptor::ServerDN; }
 
 #[derive(Debug)] pub enum OCIType {}
 /*
-macro_rules! descriptor {
-  ($kind:ident, $name:ident) => (
-    #[derive(Debug)]
-    pub enum $name {}
-    impl DescriptorType for $name { const ID: Descriptor = Descriptor::$name; }
-    impl $kind for $name {}
-  );
-}
-
 pub trait OCILobLocator : DescriptorType {}
 descriptor!(OCILobLocator, Lob);
 descriptor!(OCILobLocator, File);
@@ -88,10 +88,7 @@ descriptor!(OCIDateTime, Date);
 descriptor!(OCIDateTime, Timestamp);
 descriptor!(OCIDateTime, TimestampWithTZ);
 descriptor!(OCIDateTime, TimestampWithLTZ);
-
-pub trait OCIInterval : DescriptorType {}
-descriptor!(OCIInterval, IntervalYM);
-descriptor!(OCIInterval, IntervalDS);*/
+*/
 /*
 #[derive(Debug)]
 #[repr(C)]

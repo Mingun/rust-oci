@@ -2,6 +2,7 @@
 
 use std::str;
 use std::u32;
+use std::time::Duration;
 use {Connection, Result};
 use error::Error;
 
@@ -278,4 +279,36 @@ impl FromDB for String {
       t => Err(Error::Conversion(t)),
     }
   }
+}
+
+use ffi::native::time::{get_day_second, IntervalDS};
+
+impl FromDB for Duration {
+  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
+    match ty {
+      Type::INTERVAL_DS => {
+        from_ds(ty, raw, conn)
+      },
+      t => Err(Error::Conversion(t)),
+    }
+  }
+}
+fn from_ds(ty: Type, raw: &[u8], conn: &Connection) -> Result<Duration> {
+  let i: &IntervalDS = unsafe { conn.as_descriptor(raw) };
+  let dur = try!(get_day_second(&conn.session, conn.error(), i));
+
+  if dur[0] < 0
+  || dur[1] < 0
+  || dur[2] < 0
+  || dur[3] < 0
+  || dur[4] < 0 {
+    return Err(Error::Conversion(ty));
+  }
+  let dd = dur[0] as u64;
+  let hh = dur[1] as u64;
+  let mm = dur[2] as u64;
+  let ss = dur[3] as u64;
+  let ns = dur[4] as u32;
+  let secs = ((dd*24 + hh)*60 + mm)*60 + ss;
+  Ok(Duration::new(secs, ns))
 }

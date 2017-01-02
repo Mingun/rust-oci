@@ -162,6 +162,11 @@ impl<'e> Connection<'e> {
   fn error(&self) -> &Handle<OCIError> {
     self.server.error()
   }
+  #[inline]
+  unsafe fn as_descriptor<T: DescriptorType>(&self, raw: &[u8]) -> &T {
+    let p = raw.as_ptr() as *const *const T;
+    &*(*p as *const T)
+  }
 
   /// Осуществляет разбор SQL-выражения и создает подготовленное выражение для дальнейшего эффективного исполнения запросов.
   /// Выражение использует родной для сервера базы данных синтаксис разбора запросов. Если вам требуется использовать конкретный
