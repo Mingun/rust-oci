@@ -22,7 +22,9 @@ pub use self::descriptor::Descriptor;
 
 pub use self::types::{MallocFn, ReallocFn, FreeFn};
 pub use self::stmt::{Column, Statement};
-use self::native::*;
+use self::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
+use self::native::{OCISessionBegin, OCISessionEnd};// FFI функции
+use self::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
 
 // Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости
 use self::attr::AttrHolder;
