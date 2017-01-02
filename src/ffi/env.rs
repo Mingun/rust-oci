@@ -7,8 +7,7 @@ use Result;
 use error::{DbError, Error};
 use types::CreateMode;
 
-use super::Handle;
-use super::base::check;
+use super::{check, Handle};
 use super::native::{OCIEnv, OCIError};// FFI типы
 use super::native::{OCIEnvNlsCreate, OCITerminate};// FFI функции
 use super::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI

@@ -7,9 +7,8 @@ use std::slice;
 
 use {Environment, Result};
 
-use super::Handle;
+use super::{check, Handle};
 use super::base::AttrHolder;
-use super::base::check;
 use super::native::OCIError;// FFI типы
 use super::native::{OCIDescriptorAlloc, OCIDescriptorFree};// FFI функции
 use super::native::DescriptorType;// Типажи для безопасного моста к FFI

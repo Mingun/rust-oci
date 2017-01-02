@@ -6,9 +6,8 @@ use std::ptr;
 use Result;
 use error::{Error, DbError};
 
-use super::Env;
+use super::{check, Env};
 use super::base::AttrHolder;
-use super::base::check;
 use super::native::OCIError;// FFI типы
 use super::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функции
 use super::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI

@@ -1,12 +1,11 @@
 use std::ffi::CString;
-use std::os::raw::{c_int, c_void, c_uchar, c_uint};
+use std::os::raw::{c_void, c_uchar, c_uint};
 use std::mem;
 use std::ptr;
 use std::slice;
 use num_integer::Integer;
 
 use Result;
-use error::{DbError, Error};
 
 use super::native::HandleType;
 use super::native::OCIError;
@@ -14,12 +13,6 @@ use super::native::{OCIAttrGet, OCIAttrSet};
 use super::Handle;
 use super::types;
 
-pub fn check(native: c_int) -> Result<()> {
-  return match native {
-    0 => Ok(()),
-    e => Err(Error::Db(DbError::Unknown(e as isize)))
-  };
-}
 //-------------------------------------------------------------------------------------------------
 /// Типаж, позволяющий получать и устанавливать атрибуты тем структурам, которые его реализуют.
 pub trait AttrHolder<T> {

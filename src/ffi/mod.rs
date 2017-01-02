@@ -1,7 +1,8 @@
 
-use std::os::raw::c_uint;
+use std::os::raw::{c_int, c_uint};
 
 use Result;
+use error::{Error, DbError};
 use params::{ConnectParams, Credentials};
 use types::{AuthMode, CreateMode};
 
@@ -26,6 +27,12 @@ use self::native::*;
 use self::base::AttrHolder;
 use self::stmt::StatementPrivate;
 
+fn check(native: c_int) -> Result<()> {
+  return match native {
+    0 => Ok(()),
+    e => Err(Error::Db(DbError::Unknown(e as isize)))
+  };
+}
 //-------------------------------------------------------------------------------------------------
 /// Окружение представляет собой менеджер соединений к базе. При разрушении окружения
 /// все открытые соединения автоматически закрываются а незавершенные транзакции в них
