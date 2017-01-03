@@ -399,6 +399,8 @@ mod tests {
       print_chrono(&stmt);
     }
   }
+  #[cfg(not(feature = "with-chrono"))]
+  fn print_chrono(stmt: &Statement) {}
   #[cfg(feature = "with-chrono")]
   fn print_chrono(stmt: &Statement) {
     let rs = stmt.query().expect("Can't execute query");
