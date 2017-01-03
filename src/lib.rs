@@ -7,6 +7,7 @@ extern crate num_traits;
 pub mod error;
 pub mod params;
 pub mod types;
+pub mod version;
 mod ffi;
 
 /// Тип результата, возвращаемый всеми функциями библиотеки, которые могут привести к ошибке.
@@ -24,6 +25,7 @@ use std::os::raw::c_uint;
 
 use params::{ConnectParams, Credentials};
 use types::{CreateMode, AuthMode, Syntax};
+use version::Version;
 
 use ffi::{Env, Server, Handle, Descriptor};
 use ffi::types::{Attr, CredentialMode};
@@ -168,6 +170,17 @@ impl<'e> Connection<'e> {
     &*(*p as *const T)
   }
 
+  /// Возвращает версию сервера Oracle-а, к которому подключен клиент.
+  ///
+  /// Данная функция возвращает версию сервера. Если вам нужно получить версию клиента, то используйте вызов [`client_version()`][1].
+  ///
+  /// # Запросы к серверу (1)
+  /// Функция выполняет один запрос к серверу при каждом вызове.
+  ///
+  /// [1]: ./fn.client_version.html
+  pub fn server_version(&self) -> Result<Version> {
+    self.server.version()
+  }
   /// Осуществляет разбор SQL-выражения и создает подготовленное выражение для дальнейшего эффективного исполнения запросов.
   /// Выражение использует родной для сервера базы данных синтаксис разбора запросов. Если вам требуется использовать конкретный
   /// синтаксис, воспользуйтесь методом [`prepare_with_syntax`][1].
@@ -238,6 +251,7 @@ mod tests {
   use super::*;
   use params::*;
   use types::*;
+  use version::client_version;
   #[test]
   fn it_works() {
     let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
@@ -266,6 +280,9 @@ mod tests {
     println!("params: {:?}", params);
 
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
+    println!("Client version: {}", client_version());
+    println!("Server version: {}", conn.server_version().expect("Can't get server version"));
+
     let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
     let rs = stmt.query().expect("Can't execute query");
     let columns = stmt.columns().expect("Can't get select list column count");

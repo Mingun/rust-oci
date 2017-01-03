@@ -3,6 +3,8 @@ use std::ptr;
 
 use {Environment, Result};
 use types::AttachMode;
+use version::Version;
+use ffi::native::server_version;
 
 use super::{Handle, Descriptor};
 use super::native::{OCIServer, OCIError};// FFI типы
@@ -55,6 +57,13 @@ impl<'env> Server<'env> {
   #[inline]
   pub fn handle(&self) -> &Handle<OCIServer> {
     &self.handle
+  }
+  /// Возвращает версию сервера Oracle-а, к которому подключен клиент.
+  ///
+  /// # Запросы к серверу (1)
+  /// Функция выполняет один запрос к серверу при каждом вызове.
+  pub fn version(&self) -> Result<Version> {
+    server_version(&self.handle, self.error())
   }
 }
 impl<'env> Drop for Server<'env> {

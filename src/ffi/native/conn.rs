@@ -142,13 +142,4 @@ extern "C" {
                        errhp: *mut OCIError,
                        usrhp: *mut OCISession,
                        mode: c_uint) -> c_int;
-
-  /// Returns an error message in the buffer provided and an Oracle Database error code.
-  pub fn OCIErrorGet(hndlp: *mut c_void,
-                     recordno: c_uint,
-                     sqlstate: *mut c_uchar,// устарел с версии 8.x
-                     errcodep: *mut c_int,  // возвращаемый код ошибки
-                     bufp: *mut c_uchar,    // возвращаемое сообщение об ошибке
-                     bufsiz: c_uint,
-                     htype: c_uint) -> c_int;
 }

@@ -12,6 +12,7 @@ macro_rules! descriptor {
 mod bind;
 mod conn;
 mod hndl;
+mod misc;
 mod stmt;
 mod lob;
 mod num;
@@ -22,6 +23,7 @@ use super::types::Descriptor;
 pub use self::bind::*;
 pub use self::conn::*;
 pub use self::hndl::*;
+pub use self::misc::*;
 pub use self::stmt::*;
 pub use self::lob::*;
 pub use self::num::*;
@@ -50,7 +52,9 @@ impl ErrorHandle for OCIEnv { const ID: Handle = Handle::Env; }
 #[derive(Debug)] pub enum OCIError {}    impl HandleType for OCIError    { const ID: Handle = Handle::Error; }
 impl ErrorHandle for OCIError { const ID: Handle = Handle::Error; }
 #[derive(Debug)] pub enum OCIServer {}   impl HandleType for OCIServer   { const ID: Handle = Handle::Server; }
+impl VersionHandle for OCIServer {}
 #[derive(Debug)] pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx   { const ID: Handle = Handle::SvcCtx; }
+impl VersionHandle for OCISvcCtx {}
 #[derive(Debug)] pub enum OCISession {}  impl HandleType for OCISession  { const ID: Handle = Handle::Session; }
 #[derive(Debug)] pub enum OCIStmt {}
 impl AttrHandle  for OCIStmt { const ID: Handle = Handle::Stmt; }
