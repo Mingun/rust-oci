@@ -211,6 +211,11 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     param_get(self.native, pos, self.error())
   }
 
+  /// Возвращает соединение, из которого было подготовлено данные выражение.
+  #[inline]
+  pub fn connection(&self) -> &Connection {
+    self.conn
+  }
   pub fn columns(&self) -> Result<Vec<Column>> {
     let cnt = try!(self.param_count());
     let mut vec = Vec::with_capacity(cnt as usize);
