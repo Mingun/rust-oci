@@ -6,8 +6,8 @@
 //! ```rust
 //! extern crate oci;
 //! use oci::Environment;
-//! use oci::params::ConnectParams;
-//! use oci::types::{AttachMode, AuthMode, CreateMode, Credentials};
+//! use oci::params::{ConnectParams, Credentials};
+//! use oci::types::{AttachMode, AuthMode, CreateMode};
 //! use oci::version::client_version;
 //! 
 //! fn main() {
