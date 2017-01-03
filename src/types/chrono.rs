@@ -67,15 +67,29 @@ impl FromDB for NaiveDateTime {
   }
 }
 //-------------------------------------------------------------------------------------------------
+fn to_date<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<Date<FixedOffset>> {
+  let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), timestamp));
+  let tz = try!(to_tz(conn, timestamp));
+
+  Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32))
+}
+fn to_datetime<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<DateTime<FixedOffset>> {
+  let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), timestamp));
+  let (hh, mm, ss, ns) = try!(get_time(&conn.session, conn.error(), timestamp));
+  let tz = try!(to_tz(conn, timestamp));
+
+  Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32).and_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
+}
 impl FromDB for Date<FixedOffset> {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
         let t: &TimestampWithTZ = unsafe { conn.as_descriptor(raw) };
-        let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), t));
-        let tz = try!(to_tz(conn, t));
-
-        Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32))
+        to_date(conn, t)
+      },
+      Type::TIMESTAMP_LTZ => {// Время в некоем часовом поясе и сам этот пояс
+        let t: &TimestampWithLTZ = unsafe { conn.as_descriptor(raw) };
+        to_date(conn, t)
       },
       t => Err(Error::Conversion(t)),
     }
@@ -86,11 +100,11 @@ impl FromDB for DateTime<FixedOffset> {
     match ty {
       Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
         let t: &TimestampWithTZ = unsafe { conn.as_descriptor(raw) };
-        let (yyyy, MM, dd) = try!(get_date(&conn.session, conn.error(), t));
-        let (hh, mm, ss, ns) = try!(get_time(&conn.session, conn.error(), t));
-        let tz = try!(to_tz(conn, t));
-
-        Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32).and_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
+        to_datetime(conn, t)
+      },
+      Type::TIMESTAMP_LTZ => {// Время в некоем часовом поясе и сам этот пояс
+        let t: &TimestampWithLTZ = unsafe { conn.as_descriptor(raw) };
+        to_datetime(conn, t)
       },
       t => Err(Error::Conversion(t)),
     }
