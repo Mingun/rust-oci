@@ -43,6 +43,12 @@ impl FromDB for NaiveDate {
         let t: &Timestamp = unsafe { conn.as_descriptor(raw) };
         to_naive_date(conn, t)
       },
+      Type::TIMESTAMP_LTZ => {
+        // Наивное время является текущим временем данной колонки в текущем часовом поясе. Т.е. если в базе хранится время 00:00:00,
+        // сама база во времени +00:00, то в часовом поясе сессии +05:00 наивное время будет 05:00:00, а сессии в +03:00 -- 03:00:00.
+        let t: &TimestampWithLTZ = unsafe { conn.as_descriptor(raw) };
+        to_naive_date(conn, t)
+      },
       t => Err(Error::Conversion(t)),
     }
   }
@@ -52,6 +58,12 @@ impl FromDB for NaiveTime {
     match ty {
       Type::TIMESTAMP => {// Время в некоем неизвестном часовом поясе
         let t: &Timestamp = unsafe { conn.as_descriptor(raw) };
+        to_naive_time(conn, t)
+      },
+      Type::TIMESTAMP_LTZ => {
+        // Наивное время является текущим временем данной колонки в текущем часовом поясе. Т.е. если в базе хранится время 00:00:00,
+        // сама база во времени +00:00, то в часовом поясе сессии +05:00 наивное время будет 05:00:00, а сессии в +03:00 -- 03:00:00.
+        let t: &TimestampWithLTZ = unsafe { conn.as_descriptor(raw) };
         to_naive_time(conn, t)
       },
       t => Err(Error::Conversion(t)),
