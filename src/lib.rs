@@ -32,6 +32,7 @@ use ffi::types::{Attr, CredentialMode};
 use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
 use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции
 use ffi::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
+use ffi::native::time::{get_time_offset, sys_timestamp, TimestampWithTZ};
 
 // Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости
 use ffi::attr::AttrHolder;
@@ -227,6 +228,38 @@ impl<'e> Connection<'e> {
   pub fn prepare_with_syntax(&'e self, syntax: Syntax, sql: &str) -> Result<Statement<'e, 'e>> {
     Statement::new(&self, sql, None, syntax)
   }
+  /// Получает текущий часовой пояс сессии в виде пары чисел, означающих смещение в часах и минутах.
+  /// Диапазон возможных значений результата: от `-12:59` до `+14:00`.
+  ///
+  /// Данный часовой пояс влияет на получение дат из столбцов с типом [`TIMESTAMP WITH LOCAL TIME ZONE`][tz] при извлечении их в
+  /// Rust-тип [`chrono::NaiveDate`][nd], [`chrono::NaiveTime`][nt] и [`chrono::NaiveDateTime`][ndt] (конвертация в данные типы
+  /// доступна только в том случае, если библиотека используется с возможностью `with-chrono`).
+  ///
+  /// # OCI вызовы
+  /// Напрямую получить часовой пояс, аналогично запросу `select sessionTimeZone from dual` нельзя, API не предоставляет такой функции,
+  /// поэтому смещение извлекается из текущего времени сервера базы данных, запрашиваемого OCI-вызовом [`OCIDateTimeSysTimeStamp()`][1].
+  /// Часовой пояс затем извлекается из полученного объекта временной метки вызовом [`OCIDateTimeGetTimeZoneOffset()`][2]. Кроме того,
+  /// для возможности извлечь время создается и уничтожается дескриптор для временной метки с часовым поясом, соответственно функциями
+  /// [`OCIDescriptorAlloc()`][new] и [`OCIDescriptorFree()`][end].
+  ///
+  /// # Запросы к серверу (0)
+  /// Ни одна из вызываемых функций не выполняет запросов к серверу.
+  ///
+  /// [tz]: http://docs.oracle.com/database/122/LNOCI/data-types.htm#LNOCI16308
+  /// [nd]: https://lifthrasiir.github.io/rust-chrono/chrono/naive/date/struct.NaiveDate.html
+  /// [nt]: https://lifthrasiir.github.io/rust-chrono/chrono/naive/time/struct.NaiveTime.html
+  /// [ndt]: https://lifthrasiir.github.io/rust-chrono/chrono/naive/datetime/struct.NaiveDateTime.html
+  /// [1]: http://docs.oracle.com/database/122/LNOCI/oci-date-datetime-and-interval-functions.htm#LNOCI17425
+  /// [2]: http://docs.oracle.com/database/122/LNOCI/oci-date-datetime-and-interval-functions.htm#LNOCI17422
+  /// [new]: http://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI17132
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI17134
+  pub fn get_current_time_offset(&self) -> Result<(i8, i8)> {
+    let mut d: Descriptor<TimestampWithTZ> = try!(self.server.new_descriptor());
+    // Получаем текущее время сервера. Так как оно возвращается в виде временной метки с часовым поясом,
+    // а часовой пояс зависит от часового пояса сессии, то таким образом мы можем получить часовой пояс сессии.
+    try!(sys_timestamp(&self.session, self.error(), d.native_mut()));
+    get_time_offset(&self.session, self.error(), d.as_ref())
+  }
 }
 impl<'e> Drop for Connection<'e> {
   fn drop(&mut self) {
@@ -282,6 +315,7 @@ mod tests {
     let conn = env.connect(params).expect("Can't connect to ORACLE database");
     println!("Client version: {}", client_version());
     println!("Server version: {}", conn.server_version().expect("Can't get server version"));
+    println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
 
     let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
     let rs = stmt.query().expect("Can't execute query");

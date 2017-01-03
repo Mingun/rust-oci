@@ -173,6 +173,18 @@ pub fn to_number<T: OCIInterval>(hndl: &Handle<OCISession>, err: &Handle<OCIErro
     e => Err(err.decode(e))
   }
 }
+//-------------------------------------------------------------------------------------------------
+pub fn sys_timestamp<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, sys_date: *mut T) -> Result<()> {
+  let res = unsafe {
+    OCIDateTimeSysTimeStamp(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut(),
+      sys_date as *mut c_void
+    )
+  };
+  err.check(res)
+}
+//-------------------------------------------------------------------------------------------------
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
 #[cfg_attr(not(windows), link(name = "clntsh"))]
@@ -335,7 +347,8 @@ extern "C" {
   /// - hndl (IN):
   ///   The OCI user session handle or the environment handle.
   /// - err (IN/OUT):
-  ///   The OCI error handle. If there is an error, it is recorded in err, and this function returns OCI_ERROR. Obtain diagnostic information by calling OCIErrorGet().
+  ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
+  ///   Obtain diagnostic information by calling `OCIErrorGet()`.
   /// - interval (IN):
   ///   Interval to be converted.
   /// - number (OUT):
@@ -348,4 +361,22 @@ extern "C" {
                          // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно 2 разных типа enum-а
                          interval: *mut c_void/*OCIInterval*/,
                          number: *mut OCINumber) -> c_int;
+//-------------------------------------------------------------------------------------------------
+  /// Gets the system current date and time as a time stamp with time zone.
+  ///
+  /// # Parameters
+  /// - hndl (IN):
+  ///   The OCI user session handle or environment handle.
+  /// - err (IN/OUT):
+  ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
+  ///   Obtain diagnostic information by calling `OCIErrorGet()`.
+  /// - sys_date (OUT):
+  ///   Pointer to the output time stamp.
+  ///
+  /// # Returns
+  /// `OCI_SUCCESS`; or `OCI_INVALID_HANDLE`, if `err` is a `NULL` pointer.
+  fn OCIDateTimeSysTimeStamp(hndl: *mut c_void,
+                             err: *mut OCIError, 
+                             // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                             sys_date: *mut c_void/*OCIDateTime*/) -> c_int;
 }

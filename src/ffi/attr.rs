@@ -23,6 +23,9 @@ pub trait AttrHolder<T> {
   fn native_mut(&mut self) -> *mut T {
     self.native() as *mut T
   }
+  fn as_ref(&self) -> &T {
+    unsafe { &*self.native() }
+  }
 
   /// Получает значение указанного атрибута из объекта-владельца атрибутов
   unsafe fn get(&self, value: *mut c_void, size: &mut c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
