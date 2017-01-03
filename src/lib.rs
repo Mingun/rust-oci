@@ -72,16 +72,24 @@ impl<'e> Environment<'e> {
   /// Осуществляет OCI вызов [`OCISessionBegin()`][new]. При разрушении объекта соединения будет осуществлен OCI вызов
   /// [`OCISessionEnd()`][end].
   ///
+  /// # Запросы к серверу (1)
+  /// Функция выполняет один запрос к серверу при создании каждого соединения. Также будет совершен один запрос к серверу
+  /// при уничтожении соединения.
+  ///
   /// [new]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-31B1FDB3-056E-4AF9-9B89-8DA6AA156947
   /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17123
   #[inline]
   pub fn connect<P: Into<ConnectParams>>(&'e self, params: P) -> Result<Connection<'e>> {
     Connection::new(&self, &params.into())
   }
+  /// Создает новый хендл для хранения объектов указанного типа. Хендл будет автоматически закрыт при выходе из зоны видимости
+  /// переменной, хранящей его.
   #[inline]
   fn new_handle<T: HandleType>(&self) -> Result<Handle<T>> {
     self.env.new_handle(self.error.native_mut())
   }
+  /// Создает новый дескриптор для хранения объектов указанного типа. Дескриптор будет автоматически закрыт при выходе из зоны
+  /// видимости переменной, хранящей его.
   #[inline]
   fn new_descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
     Descriptor::new(&self)
@@ -175,10 +183,14 @@ impl<'e> Connection<'e> {
   ///
   /// Данная функция возвращает версию сервера. Если вам нужно получить версию клиента, то используйте вызов [`client_version()`][1].
   ///
+  /// # OCI вызовы
+  /// Для получения версии сервера используется OCI вызов [`OCIServerRelease()`][2].
+  ///
   /// # Запросы к серверу (1)
   /// Функция выполняет один запрос к серверу при каждом вызове.
   ///
   /// [1]: ./fn.client_version.html
+  /// [2]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17293
   pub fn server_version(&self) -> Result<Version> {
     self.server.version()
   }
@@ -196,6 +208,9 @@ impl<'e> Connection<'e> {
   /// # OCI вызовы
   /// Объект выражения создается OCI вызовом [`OCIStmtPrepare2()`][new]. При разрушении объекта соединения будет осуществлен
   /// OCI вызов [`OCIStmtRelease()`][end].
+  ///
+  /// # Запросы к серверу (0)
+  /// Функция не выполняет запросов к серверу, разбор и подготовка запроса выполняются локально.
   ///
   /// [new]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17168
   /// [end]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17170
@@ -219,6 +234,9 @@ impl<'e> Connection<'e> {
   /// # OCI вызовы
   /// Объект выражения создается OCI вызовом [`OCIStmtPrepare2()`][new]. При разрушении объекта соединения будет осуществлен
   /// OCI вызов [`OCIStmtRelease()`][end].
+  ///
+  /// # Запросы к серверу (0)
+  /// Функция не выполняет запросов к серверу, разбор и подготовка запроса выполняются локально.
   ///
   /// [new]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17168
   /// [end]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17170
