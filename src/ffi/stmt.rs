@@ -94,7 +94,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///     нужно использовать при выполнении данной операции
   /// - offset:
   ///   Смещение с буфере со связанными переменными, с которого необходимо начать выполнение 
-  fn execute(&self, count: c_uint, offset: c_uint, mode: ExecuteMode) -> Result<()> {
+  fn execute_impl(&self, count: c_uint, offset: c_uint, mode: ExecuteMode) -> Result<()> {
     let res = unsafe {
       OCIStmtExecute(
         self.conn.context.native_mut(),
@@ -225,9 +225,12 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     Ok(vec)
   }
   pub fn query(&self) -> Result<RowSet> {
-    try!(self.execute(0, 0, Default::default()));
+    try!(self.execute_impl(0, 0, Default::default()));
 
     Ok(RowSet { stmt: &self })
+  }
+  pub fn execute(&self) -> Result<()> {
+    self.execute_impl(1, 0, Default::default())
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {

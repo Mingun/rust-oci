@@ -347,6 +347,38 @@ mod tests {
       let user: Result<Option<String>> = row.get(&columns[0], &conn);
       println!("row: user: {:?}", user);
     }
+
+    if cfg!(feature = "with-chrono") {
+      println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
+      print_chrono(&stmt);
+
+      println!("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+      conn.prepare("alter session set time_zone = '+00:00'").expect("set timezone").execute().expect("execute");
+
+      println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
+      print_chrono(&stmt);
+    }
+  }
+  #[cfg(feature = "with-chrono")]
+  fn print_chrono(stmt: &Statement) {
+    let rs = stmt.query().expect("Can't execute query");
+    let columns = stmt.columns().expect("Can't get select list column count");
+    for row in rs {
+      println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Naive");
+      print_naive(&row, &columns[3], stmt.connection());// Timestamp
+      print_naive(&row, &columns[7], stmt.connection());// TimestampWithTZ
+      print_naive(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+
+      println!("------------------------------------------------------ FixedOffset");
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[3], stmt.connection());// Timestamp
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[7], stmt.connection());// TimestampWithTZ
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+
+      println!("====================================================== UTC");
+      print_with_tz::<chrono::UTC>(&row, &columns[3], stmt.connection());// Timestamp
+      print_with_tz::<chrono::UTC>(&row, &columns[7], stmt.connection());// TimestampWithTZ
+      print_with_tz::<chrono::UTC>(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+    }
   }
   #[cfg(feature = "with-chrono")]
   fn print_naive(row: &Row, col: &Column, conn: &Connection) {
