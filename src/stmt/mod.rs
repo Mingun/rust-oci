@@ -228,6 +228,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   pub fn connection(&self) -> &Connection {
     self.conn
   }
+  /// Получает информацию о списке выбора `SELECT`-выражения.
   pub fn columns(&self) -> Result<Vec<Column>> {
     let cnt = try!(self.param_count());
     let mut vec = Vec::with_capacity(cnt as usize);
@@ -239,7 +240,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   pub fn query(&self) -> Result<RowSet> {
     try!(self.execute_impl(0, 0, Default::default()));
 
-    Ok(RowSet { stmt: &self })
+    RowSet::new(self)
   }
   pub fn execute(&self) -> Result<()> {
     self.execute_impl(1, 0, Default::default())
@@ -286,18 +287,17 @@ impl<'conn, 'key> super::StatementPrivate for Statement<'conn, 'key> {
   }
 }
 
-/// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки
+/// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки.
 #[derive(Debug)]
 pub struct Row<'d> {
   /// Массив данных для каждой колонки.
   data: Vec<DefineInfo<'d>>,
 }
 impl<'d> Row<'d> {
-  fn new(stmt: &'d Statement) -> Result<Self> {
-    let columns = try!(stmt.columns());
+  fn new(stmt: &'d Statement, columns: &[Column]) -> Result<Self> {
     let mut data: Vec<DefineInfo> = Vec::with_capacity(columns.len());
 
-    for c in &columns {
+    for c in columns {
       data.push(try!(DefineInfo::new(stmt, c)));
       // unwrap делать безопасно, т.к. мы только что вставили в массив данные
       try!(stmt.define(c.pos, c.bind_type(), data.last_mut().unwrap(), Default::default()));
@@ -309,16 +309,37 @@ impl<'d> Row<'d> {
     self.data[col.pos].to(col.bind_type(), conn)
   }
 }
+/// Набор результатов, полученный при выполнении `SELECT` выражения. Итерация по набору позволяет получить данные,
+/// извлеченные из базы данных.
 #[derive(Debug)]
-pub struct RowSet<'s> {
-  stmt: &'s Statement<'s, 's>,
+pub struct RowSet<'stmt> {
+  /// Выражение, выполнение которого дало данный набор результатов
+  stmt: &'stmt Statement<'stmt, 'stmt>,
+  /// Список колонок, которые извлекали из базы данных
+  columns: Vec<Column>,
 }
 
-impl<'s> Iterator for RowSet<'s> {
-  type Item = Row<'s>;
+impl<'stmt> RowSet<'stmt> {
+  #[inline]
+  fn new(stmt: &'stmt Statement) -> Result<Self> {
+    Ok(RowSet { stmt: stmt, columns: try!(stmt.columns()) })
+  }
+  /// Получает выражение, которое породило данный набор результатов.
+  #[inline]
+  pub fn statement(&self) -> &Statement<'stmt, 'stmt> {
+    self.stmt
+  }
+  /// Получает список столбцов, которые содержатся в данном результате `SELECT`-а.
+  #[inline]
+  pub fn columns(&self) -> &[Column] {
+    &self.columns
+  }
+}
+impl<'stmt> Iterator for RowSet<'stmt> {
+  type Item = Row<'stmt>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    let r = Row::new(self.stmt).expect("Row::new failed");
+    let r = Row::new(self.stmt, self.columns()).expect("Row::new failed");
     match self.stmt.fetch(1, Default::default(), 0) {
       Ok(_) => Some(r),
       Err(Db(NoData)) => None,
