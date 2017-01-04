@@ -5,7 +5,6 @@ use Result;
 use error::{Error, DbError};
 
 pub mod attr;
-pub mod stmt;
 pub mod types;
 pub mod native;
 

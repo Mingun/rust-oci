@@ -46,6 +46,7 @@ extern crate num_traits;
 
 pub mod error;
 pub mod params;
+pub mod stmt;
 pub mod types;
 pub mod version;
 mod ffi;
@@ -58,12 +59,11 @@ mod ffi;
 ///
 /// [1]: https://doc.rust-lang.org/std/ops/trait.Drop.html
 pub type Result<T> = std::result::Result<T, error::Error>;
-// Реэкспорты
-pub use ffi::stmt::{Column, Statement, RowSet, Row};
 
 use std::os::raw::c_uint;
 
 use params::{ConnectParams, Credentials};
+use stmt::Statement;
 use types::{CreateMode, AuthMode, Syntax};
 use version::Version;
 
@@ -76,7 +76,6 @@ use ffi::native::time::{get_time_offset, sys_timestamp, TimestampWithTZ};
 
 // Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости
 use ffi::attr::AttrHolder;
-use ffi::stmt::StatementPrivate;
 
 //-------------------------------------------------------------------------------------------------
 /// Окружение представляет собой менеджер соединений к базе. При разрушении окружения
@@ -333,6 +332,25 @@ impl<'e> Drop for Connection<'e> {
   }
 }
 
+/// Типаж, предоставляющий классу соединения возможность создавать выражения, при этом не выставляя данную возможность
+/// в виде публичного API соединения.
+trait StatementPrivate {
+  /// Создает новый объект подготовленного выражения для указанного соединения. Осуществляет разбор переданного выражения,
+  /// при необходимости может поискать его в кеше уже подготовленных выражений.
+  ///
+  /// # Параметры
+  /// - conn:
+  ///   Соединение, создающее выражение. Полученное выражение будет жить не дольше него.
+  /// - sql:
+  ///   Текстовое представление запроса
+  /// - key:
+  ///   Если задано, то выражение будет искаться в кеше выражений по указанному ключу и если оно будет найдено, повторного
+  ///   синтаксического анализа производится не будет. В этом случае параметр `syntax` не учитывается.
+  /// - syntax:
+  ///   Правила разбора, которые будет использоваться при анализе SQL-выражения.
+  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> Result<Statement<'c, 'k>>;
+}
+
 #[cfg(test)]
 mod tests {
   #[cfg(feature = "with-chrono")]
@@ -341,8 +359,10 @@ mod tests {
   use std::env;
   use super::*;
   use params::*;
+  use stmt::*;
   use types::*;
   use version::client_version;
+
   #[test]
   fn it_works() {
     let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
