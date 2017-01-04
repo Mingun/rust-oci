@@ -57,12 +57,27 @@ impl<'e> Env<'e> {
   pub fn native(&self) -> *const OCIEnv {
     self.native
   }
-}
-impl<'e> Drop for Env<'e> {
-  fn drop(&mut self) {
-    let res = unsafe { OCITerminate(self.mode as c_uint) };
+  /// Данная функция существует по той причине, что ее вызов при разрушения данного объекта приведет к невозможности заново создать
+  /// данный объект, т.к. повторная инициализация окружения вызывает crash в недрах OCI. По этому поводу еще с 2015 года [есть вопрос][1]
+  /// на официальном форуме сообщества Oracle, который был проигнорирован.
+  ///
+  /// Не рекомендуется вызывать данную функцию. При выгрузки приложения из памяти операционная система в любом случае почистит
+  /// все неосвобожденные ресурсы. Также в примерах Oracle-а данная функция не вызывается
+  ///
+  /// # OCI вызовы
+  /// Выполняет OCI вызов [`OCITerminate()`][end].
+  ///
+  /// # Запросы к серверу (1)
+  /// Завершение работы требует посылки запроса на сервер. Это выглядит немного страно, учитывая, что создание окружения никаких
+  /// запросов не посылает.
+  ///
+  /// [1]: https://community.oracle.com/thread/3779405
+  /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17127
+  #[deprecated(note = "Calling of this function will result in impossibility to anew initialize oci because of crash: https://community.oracle.com/thread/3779405")]
+  pub fn terminate() -> Result<()> {
+    let res = unsafe { OCITerminate(0) };
     // Получить точную причину ошибки в этом месте нельзя, т.к. все структуры уже разрушены
-    check(res).expect("OCITerminate");
+    check(res)
   }
 }
 impl<'e> fmt::Debug for Env<'e> {
