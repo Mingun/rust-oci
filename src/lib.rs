@@ -403,8 +403,8 @@ mod tests {
     }
 
     println!("Now values:");
-    for row in rs {
-      let user: Result<Option<String>> = row.get(&columns[0], &conn);
+    for row in &rs {
+      let user: Result<Option<String>> = row.get(0);
       println!("row: user: {:?}", user);
     }
 
@@ -425,28 +425,28 @@ mod tests {
   fn print_chrono(stmt: &Statement) {
     let rs = stmt.query().expect("Can't execute query");
     let columns = stmt.columns().expect("Can't get select list column count");
-    for row in rs {
+    for row in &rs {
       println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Naive");
-      print_naive(&row, &columns[3], stmt.connection());// Timestamp
-      print_naive(&row, &columns[7], stmt.connection());// TimestampWithTZ
-      print_naive(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+      print_naive(&row, &columns[3]);// Timestamp
+      print_naive(&row, &columns[7]);// TimestampWithTZ
+      print_naive(&row, &columns[8]);// TimestampWithLTZ
 
       println!("------------------------------------------------------ FixedOffset");
-      print_with_tz::<chrono::FixedOffset>(&row, &columns[3], stmt.connection());// Timestamp
-      print_with_tz::<chrono::FixedOffset>(&row, &columns[7], stmt.connection());// TimestampWithTZ
-      print_with_tz::<chrono::FixedOffset>(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[3]);// Timestamp
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[7]);// TimestampWithTZ
+      print_with_tz::<chrono::FixedOffset>(&row, &columns[8]);// TimestampWithLTZ
 
       println!("====================================================== UTC");
-      print_with_tz::<chrono::UTC>(&row, &columns[3], stmt.connection());// Timestamp
-      print_with_tz::<chrono::UTC>(&row, &columns[7], stmt.connection());// TimestampWithTZ
-      print_with_tz::<chrono::UTC>(&row, &columns[8], stmt.connection());// TimestampWithLTZ
+      print_with_tz::<chrono::UTC>(&row, &columns[3]);// Timestamp
+      print_with_tz::<chrono::UTC>(&row, &columns[7]);// TimestampWithTZ
+      print_with_tz::<chrono::UTC>(&row, &columns[8]);// TimestampWithLTZ
     }
   }
   #[cfg(feature = "with-chrono")]
-  fn print_naive(row: &Row, col: &Column, conn: &Connection) {
-    let time0: Result<Option<chrono::NaiveDate>> = row.get(col, conn);
-    let time1: Result<Option<chrono::NaiveTime>> = row.get(col, conn);
-    let time2: Result<Option<chrono::NaiveDateTime>> = row.get(col, conn);
+  fn print_naive(row: &Row, col: &Column) {
+    let time0: Result<Option<chrono::NaiveDate>> = row.get(col.pos);
+    let time1: Result<Option<chrono::NaiveTime>> = row.get(col.pos);
+    let time2: Result<Option<chrono::NaiveDateTime>> = row.get(col.pos);
 
     println!("column: {:?}", col);
     println!("chrono::date: {:?}", time0);
@@ -455,13 +455,13 @@ mod tests {
     println!();
   }
   #[cfg(feature = "with-chrono")]
-  fn print_with_tz<Tz>(row: &Row, col: &Column, conn: &Connection)
+  fn print_with_tz<Tz>(row: &Row, col: &Column)
     where Tz: chrono::TimeZone,
           chrono::Date<Tz>: FromDB,
           chrono::DateTime<Tz>: FromDB
   {
-    let time0: Result<Option<chrono::Date<Tz>>> = row.get(col, conn);
-    let time2: Result<Option<chrono::DateTime<Tz>>> = row.get(col, conn);
+    let time0: Result<Option<chrono::Date<Tz>>> = row.get(col.pos);
+    let time2: Result<Option<chrono::DateTime<Tz>>> = row.get(col.pos);
 
     println!("column: {:?}", col);
     println!("chrono::date: {:?}", time0);

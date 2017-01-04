@@ -40,4 +40,10 @@ pub enum Error {
   Db(DbError),
   /// Ошибка преобразования значения Rust в значение базы данных или наоборот
   Conversion(Type),
+  /// Возникает при [получении элемента][get] из [строки выборки][row], если индекс, по которому получается элемент,
+  /// не существует в выборке.
+  ///
+  /// [get]: ../stmt/struct.Row.html#method.get
+  /// [row]: ../stmt/struct.Row.html
+  InvalidColumn,
 }
