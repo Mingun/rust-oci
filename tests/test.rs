@@ -1,8 +1,10 @@
 extern crate oci;
 
-use oci::{Environment, Connection};
+use oci::Environment;
 use oci::params::{ConnectParams, Credentials};
 use oci::types::{AttachMode, AuthMode, CreateMode};
+
+mod utils;
 
 fn connect(cred: Credentials) {
   let mode = CreateMode::default();
@@ -14,16 +16,6 @@ fn connect(cred: Credentials) {
     auth_mode: AuthMode::default(),
   };
   env.connect(params).expect(format!("Can't connect to ORACLE database with Credentials={:?}", cred).as_str());
-}
-
-fn prepare<'e>(env: &'e Environment) -> Connection<'e> {
-  let params = ConnectParams {
-    dblink: "".into(),
-    attach_mode: AttachMode::default(),
-    credentials: Credentials::Ext,
-    auth_mode: AuthMode::default(),
-  };
-  env.connect(params).expect("Can't connect to ORACLE database")
 }
 
 #[test]
@@ -56,7 +48,7 @@ fn cant_connect_with_rdbms_authentification_with_unknown_user() {
 #[test]
 fn can_prepare() {
   let env = Environment::new(CreateMode::default()).unwrap();
-  let conn = prepare(&env);
+  let conn = utils::connect(&env);
 
   let mut stmt = conn.prepare("select * from dual").expect("Can't prepare SELECT expression");
   stmt.query().expect("Can't execute SELECT expression");
