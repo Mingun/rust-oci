@@ -9,6 +9,7 @@ use std::ptr;
 use {Connection, Result};
 use error::Error;
 use error::DbError::NoData;
+use error::DbError::Fault;
 use types::{FromDB, Type, Syntax};
 
 use ffi::{Descriptor, Handle};
@@ -409,14 +410,28 @@ impl<'stmt> RowSet<'stmt> {
   pub fn columns(&self) -> &[Column] {
     &self.columns
   }
-  fn next_row(&'stmt self) -> Option<Row<'stmt>> {
+  /// Продвигает итератор по текущему набору вперед, получает следующий элемент или `None`, если элементов больше не осталось.
+  /// Поседение аналогично обычному итератору за тем исключением, что при ошибке извлечения данных возвращается `Err`, а не
+  /// выполняется паника текущего потока.
+  ///
+  /// # OCI вызовы
+  /// В настоящий момент при каждом вызове выполняется OCI-вызов [`OCIStmtFetch2()`][1], но это будет изменено в дальнейшем для выполнения
+  /// пакетных чтений сразу же по несколько элементов (размер пакета будет конфигурируемым).
+  ///
+  /// # Запросы к серверу (1)
+  /// Каждый вызов данной функции приводит к одному запросу к серверу.
+  ///
+  /// [1]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17165
+  pub fn next(&'stmt self) -> Result<Option<Row<'stmt>>> {
     // Подготавливаем место в памяти для извлечения данных.
     // TODO: его можно переиспользовать, незачем создавать каждый раз.
     let r = Row::new(self).expect("Row::new failed");
     match self.stmt.fetch(1, Default::default(), 0) {
-      Ok(_) => Some(r),
-      Err(Error::Db(NoData)) => None,
-      Err(e) => panic!("`fetch` failed: {:?}", e)
+      Ok(_) => Ok(Some(r)),
+      Err(Error::Db(NoData)) => Ok(None),
+      // ORA-01002: fetch out of sequence - если перезапустить итератор, из которого вычитаны все данные, вернется данная ошибка
+      Err(Error::Db(Fault { code: 1002, .. })) => Ok(None),
+      Err(e) => Err(e),
     }
   }
 }
@@ -424,7 +439,7 @@ impl<'stmt> Iterator for &'stmt RowSet<'stmt> {
   type Item = Row<'stmt>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    self.next_row()
+    RowSet::next(self).expect("`fetch` failed")
   }
 }
 
