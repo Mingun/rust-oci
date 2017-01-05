@@ -13,6 +13,7 @@ mod chrono;
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
+#[allow(deprecated)]// Позволяем deprecated внутри перечисления из-за https://github.com/rust-lang/rust/issues/38832
 #[repr(u16)]
 pub enum Type {
   /// (ORANET TYPE) character string

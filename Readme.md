@@ -30,7 +30,7 @@ fn main() {
   println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
 
   // Готовим запрос для выполнения
-  let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
+  let mut stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
 
   // Выполняем! Bind-параметры пока не поддерживаются
   let rs = stmt.query().expect("Can't execute query");

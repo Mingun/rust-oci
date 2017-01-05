@@ -58,10 +58,10 @@ fn can_prepare() {
   let env = Environment::new(CreateMode::default()).unwrap();
   let conn = prepare(&env);
 
-  let stmt = conn.prepare("select * from dual").expect("Can't prepare SELECT expression");
+  let mut stmt = conn.prepare("select * from dual").expect("Can't prepare SELECT expression");
   stmt.query().expect("Can't execute SELECT expression");
   // Почему-то явно некорректный SQL не приводит к возникновению ошибки при подготовке выражения
-  let stmt = conn.prepare("select * from").expect("Can't prepare SELECT expression");
+  let mut stmt = conn.prepare("select * from").expect("Can't prepare SELECT expression");
   assert!(stmt.query().is_err());
 
   let stmt = conn.prepare("create table test (id number)").expect("Can't prepare DDL expression");

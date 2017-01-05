@@ -223,13 +223,8 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     param_get(self.native, pos + 1, self.error())
   }
 
-  /// Возвращает соединение, из которого было подготовлено данные выражение.
-  #[inline]
-  pub fn connection(&self) -> &Connection {
-    self.conn
-  }
   /// Получает информацию о списке выбора `SELECT`-выражения.
-  pub fn columns(&self) -> Result<Vec<Column>> {
+  fn columns(&self) -> Result<Vec<Column>> {
     let cnt = try!(self.param_count());
     let mut vec = Vec::with_capacity(cnt as usize);
     for i in 0..cnt {
@@ -237,7 +232,55 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     }
     Ok(vec)
   }
-  pub fn query(&self) -> Result<RowSet> {
+  /// Возвращает соединение, из которого было подготовлено данные выражение.
+  #[inline]
+  pub fn connection(&self) -> &Connection {
+    self.conn
+  }
+  /// Выполняет `SELECT`-запрос и возвращает ленивый итератор по результатам. Результаты будут извлекаться из итератора только по мере
+  /// его продвижения. Так как неизвлеченные данные при этом на сервере хранятся в буферах, привязанных к конкретному выражению, то
+  /// данный метод требует `mut`-ссылки. Таким образом, гарантируется, что никто не сможет выполнить новое выражение и затереть набор,
+  /// пока по нему итерируются.
+  ///
+  /// Таким образом, чтобы выполнить следующий запрос над тем же самым выражением, старый результат вызова данной функции должен покинуть
+  /// область видимости и освободить таким образом `mut`-ссылку.
+  ///
+  /// Обратите внимание, что выполнение не-`SELECT` запросов через вызов [`execute()`][1] не требует изменяемой ссылки, т.к. в этом случае
+  /// все данные результата возвращаются сервером сразу.
+  ///
+  /// # Пример
+  /// ```
+  /// # use oci::Environment;
+  /// # use oci::params::{ConnectParams, Credentials};
+  /// # let env = Environment::new(Default::default()).unwrap();
+  /// # let conn = env.connect(ConnectParams { dblink: "".into(), attach_mode: Default::default(), credentials: Credentials::Ext, auth_mode: Default::default() }).unwrap();
+  /// let mut stmt = conn.prepare("select * from user_users").unwrap();
+  /// {
+  ///   // Используем анонимный блок, чтобы можно было выполнить присваивание в rs2 ниже, когда заимствование
+  ///   // stmt как изменяемой ссылки для rs закончится.
+  ///   let rs = stmt.query().unwrap();
+  ///   for row in &rs {
+  ///     let user: Option<String> = row.get(0).unwrap();
+  ///     println!("user: {:?}", user);
+  ///   }
+  /// }
+  /// let rs2 = stmt.query().unwrap();
+  /// // ...продолжение работы...
+  /// ```
+  ///
+  /// # OCI вызовы
+  /// Для выполнения выражения непосредственно при вызове данной функции используется OCI-вызов [`OCIStmtExecute()`][2]. Для последующего
+  /// извлечения данных через итератор используется вызов [`OCIStmtFetch2()`][3], один на каждую итерацию (данное поведение будет улучшено
+  /// в дальнейшем, для получения результатов порциями некоторого настраиваемого размера).
+  ///
+  /// # Запросы к серверу (1..)
+  /// Непосредственно в момент вызова данной функции выполняется один вызов [`OCIStmtExecute()`][2]. Каждая итерация выполняет по одному
+  /// вызову [`OCIStmtFetch2()`][3].
+  ///
+  /// [1]: #method.execute
+  /// [2]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
+  /// [3]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17165
+  pub fn query(&mut self) -> Result<RowSet> {
     try!(self.execute_impl(0, 0, Default::default()));
 
     RowSet::new(self)
@@ -323,13 +366,26 @@ impl<'d> Row<'d> {
   ///
   /// Если в столбце находится `NULL`, то возвращает `None`. Конвертация с помощью типажа `FromDB`
   /// выполняется только в том случае, если в базе находится не `NULL` значение.
+  ///
+  /// К сожалению, для типа `Row` невозможно реализовать типаж `Index`, чтобы использовать синтаксический сахар в виде
+  /// получения результата индексацией квадратными скобками (`row[...]`). Это невозможно по двум причинам:
+  ///
+  /// 1. Компилятор не может вывести возвращаемый тип, т.к. типаж `Index` определяет его, как ассоциированный тип, а не
+  ///    тип-параметр типажа. Таким образом, для возвращаемого типа невозможно указать ограничение на допустимые значения.
+  /// 2. Даже если бы удалось победить первую проблему, типаж `Index` предусматривает возвращение ссылки на значение
+  ///    вместо самого значения. Однако в случае реализации `get()` возвращаемое значение конструируется в момент получения,
+  ///    таким образом, невозможно отдать ссылку на него, не сохранив предварительно внутри структуры `Row`
   pub fn get<T: FromDB, I: RowIndex>(&self, index: I) -> Result<Option<T>> {
     let col = try!(self.column(index));
     self.data[col.pos].to(col.bind_type(), self.rs.stmt.connection())
   }
 }
-/// Набор результатов, полученный при выполнении `SELECT` выражения. Итерация по набору позволяет получить данные,
-/// извлеченные из базы данных.
+/// Ленивый набор результатов, полученный при выполнении `SELECT` выражения. Реально данные извлекаются при итерации по набору,
+/// именно поэтому метод [`query()`][1], возвращающий их, является `mut` методом.
+///
+/// В настоящий момент при итерации по набору получается одна строка за раз, с выполнением обращения к серверу.
+///
+/// [1]: ./struct.Statement.html#method.query
 #[derive(Debug)]
 pub struct RowSet<'stmt> {
   /// Выражение, выполнение которого дало данный набор результатов
@@ -337,8 +393,6 @@ pub struct RowSet<'stmt> {
   /// Список колонок, которые извлекали из базы данных
   columns: Vec<Column>,
 }
-/// Набор строк, полученный в результате выполнения `SELECT`-выражения. В настоящий момент при итерации по набору
-/// получается одна строка за раз, с выполнением обращения к серверу.
 impl<'stmt> RowSet<'stmt> {
   /// Создает набор из выражения. Запоминает описание столбцов выражения
   #[inline]
@@ -355,34 +409,22 @@ impl<'stmt> RowSet<'stmt> {
   pub fn columns(&self) -> &[Column] {
     &self.columns
   }
-}
-impl<'stmt> IntoIterator for &'stmt RowSet<'stmt> {
-  type Item = Row<'stmt>;
-  type IntoIter = RowIter<'stmt>;
-
-  fn into_iter(self) -> Self::IntoIter {
-    RowIter { rs: self }
-  }
-}
-
-/// Однонаправленный итератор по результатам `SELECT`-а.
-#[derive(Debug)]
-pub struct RowIter<'rs> {
-  /// Набор строк, по которому осуществляется итерация
-  rs: &'rs RowSet<'rs>,
-}
-impl<'rs> Iterator for RowIter<'rs> {
-  type Item = Row<'rs>;
-
-  fn next(&mut self) -> Option<Self::Item> {
+  fn next_row(&'stmt self) -> Option<Row<'stmt>> {
     // Подготавливаем место в памяти для извлечения данных.
     // TODO: его можно переиспользовать, незачем создавать каждый раз.
-    let r = Row::new(self.rs).expect("Row::new failed");
-    match self.rs.stmt.fetch(1, Default::default(), 0) {
+    let r = Row::new(self).expect("Row::new failed");
+    match self.stmt.fetch(1, Default::default(), 0) {
       Ok(_) => Some(r),
       Err(Error::Db(NoData)) => None,
       Err(e) => panic!("`fetch` failed: {:?}", e)
     }
+  }
+}
+impl<'stmt> Iterator for &'stmt RowSet<'stmt> {
+  type Item = Row<'stmt>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    self.next_row()
   }
 }
 

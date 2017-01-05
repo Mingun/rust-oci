@@ -30,7 +30,7 @@
 //!   println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
 //! 
 //!   // Готовим запрос для выполнения
-//!   let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
+//!   let mut stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
 //! 
 //!   // Выполняем! Bind-параметры пока не поддерживаются
 //!   let rs = stmt.query().expect("Can't execute query");
@@ -395,36 +395,37 @@ mod tests {
     println!("Server version: {}", conn.server_version().expect("Can't get server version"));
     println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
 
-    let stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
-    let rs = stmt.query().expect("Can't execute query");
-    let columns = stmt.columns().expect("Can't get select list column count");
-    for col in &columns {
-      println!("col: {:?}", col);
-    }
+    let mut stmt = conn.prepare("select * from user_users").expect("Can't prepare statement");
+    {
+      let rs = stmt.query().expect("Can't execute query");
+      for col in rs.columns() {
+        println!("col: {:?}", col);
+      }
 
-    println!("Now values:");
-    for row in &rs {
-      let user: Result<Option<String>> = row.get(0);
-      println!("row: user: {:?}", user);
+      println!("Now values:");
+      for row in &rs {
+        let user: Result<Option<String>> = row.get(0);
+        println!("row: user: {:?}", user);
+      }
     }
 
     if cfg!(feature = "with-chrono") {
       println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
-      print_chrono(&stmt);
+      print_chrono(&mut stmt);
 
       println!("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
       conn.prepare("alter session set time_zone = '+00:00'").expect("set timezone").execute().expect("execute");
 
       println!("Connection time offset: {:?}", conn.get_current_time_offset().expect("Can't get connection time offset"));
-      print_chrono(&stmt);
+      print_chrono(&mut stmt);
     }
   }
   #[cfg(not(feature = "with-chrono"))]
-  fn print_chrono(stmt: &Statement) {}
+  fn print_chrono(_: &mut Statement) {}
   #[cfg(feature = "with-chrono")]
-  fn print_chrono(stmt: &Statement) {
+  fn print_chrono(stmt: &mut Statement) {
     let rs = stmt.query().expect("Can't execute query");
-    let columns = stmt.columns().expect("Can't get select list column count");
+    let columns = rs.columns();
     for row in &rs {
       println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Naive");
       print_naive(&row, &columns[3]);// Timestamp
