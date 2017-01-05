@@ -49,6 +49,8 @@ pub struct Column {
   /// а не занимаемый реально данными объем.
   pub size: usize,
   pub precision: usize,
+  /// Returns the scale (number of digits to the right of the decimal point) for conversions from packed and zoned decimal input data types.
+  pub scale: usize,
 }
 
 impl Column {
@@ -59,8 +61,19 @@ impl Column {
     //let size : c_uint  = try!(desc.get_(Attr::CharSize, err));
     let size : c_uint = try!(desc.get_(Attr::DataSize, err));
     let prec : c_uint = try!(desc.get_(Attr::Precision, err));
+    //FIXME: Атрибуты Server и Scale имеют одинаковое представление в C-коде (6), но в Rust-е наличие перечислений с одним значением
+    // запрещено.
+    // let scale: c_uint = try!(desc.get_(Attr::Scale, err));
+    let scale: c_uint = try!(desc.get_(Attr::Server, err));
 
-    Ok(Column { pos: pos, name: name, size: size as usize, type_: unsafe { mem::transmute(type_ as u16) }, precision: prec as usize })
+    Ok(Column {
+      pos: pos,
+      name: name,
+      size: size as usize,
+      type_: unsafe { mem::transmute(type_ as u16) },
+      precision: prec as usize,
+      scale: scale as usize,
+    })
   }
   /// Для биндинга значений через `OCIBindByPos`, `OCIBindByName` и `OCIDefineByPos` для некоторых типов
   /// столбцов необходимо передавать не тот тип, что в столбце записан, а другой, в частности, вместо
