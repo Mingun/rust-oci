@@ -5,8 +5,14 @@
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ulonglong, c_ushort};
 
+use ffi::DescriptorType;// Типажи для безопасного моста к FFI
+
 use ffi::types;
-use ffi::native::{OCIEnv, OCIError, OCILobLocator, OCISvcCtx};// FFI типы
+use ffi::native::{OCIEnv, OCIError, OCISvcCtx};// FFI типы
+
+pub trait OCILobLocator : DescriptorType {}
+descriptor!(OCILobLocator, Lob);
+descriptor!(OCILobLocator, File);
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
@@ -28,15 +34,17 @@ extern "C" {
   /// Appends a LOB value at the end of another LOB as specified.
   pub fn OCILobAppend(svchp: *mut OCISvcCtx,
                       errhp: *mut OCIError,
-                      dst_locp: *mut OCILobLocator,
-                      src_locp: *mut OCILobLocator) -> c_int;
+                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                      dst_locp: *mut c_void/*OCILobLocator*/,
+                      src_locp: *mut c_void/*OCILobLocator*/) -> c_int;
 
   /// Reads LOB data for multiple locators in one round-trip.
   /// This function can be used for LOBs of size greater than or less than 4 GB.
   pub fn OCILobArrayRead(svchp: *mut OCISvcCtx,
                          errhp: *mut OCIError,
                          array_iter: *mut c_uint,
-                         locp_arr: *mut *mut OCILobLocator,
+                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                         locp_arr: *mut *mut c_void/*OCILobLocator*/,
                          byte_amt_arr: *mut c_ulonglong,
                          char_amt_arr: *mut c_ulonglong,
                          offset_arr: *mut c_ulonglong,
@@ -52,7 +60,8 @@ extern "C" {
   pub fn OCILobArrayWrite(svchp: *mut OCISvcCtx,
                           errhp: *mut OCIError,
                           array_iter: *mut c_uint,
-                          locp_arr: *mut *mut OCILobLocator,
+                          // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                          locp_arr: *mut *mut c_void/*OCILobLocator*/,
                           byte_amt_arr: *mut c_ulonglong,
                           char_amt_arr: *mut c_ulonglong,
                           offset_arr: *mut c_ulonglong,
@@ -67,6 +76,7 @@ extern "C" {
   /// Assigns one LOB or BFILE locator to another.
   pub fn OCILobAssign(envhp: *mut OCIEnv, 
                       errhp: *mut OCIError,
-                      src_locp: *const OCILobLocator,
-                      dst_locpp: *mut *mut OCILobLocator) -> c_int;
+                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                      src_locp: *const c_void/*OCILobLocator*/,
+                      dst_locpp: *mut *mut c_void/*OCILobLocator*/) -> c_int;
 }

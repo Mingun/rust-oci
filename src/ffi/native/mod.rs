@@ -53,7 +53,6 @@ impl ParamHandle for OCIStmt { const ID: Handle = Handle::Stmt; }
 
 #[derive(Debug)] pub enum OCISnapshot {}          impl DescriptorType for OCISnapshot           { const ID: Descriptor = Descriptor::Snapshot; }
 //#[derive(Debug)] pub enum OCIResult {}            impl DescriptorType for OCIResult             { const ID: Descriptor = Descriptor::; }
-#[derive(Debug)] pub enum OCILobLocator {}        impl DescriptorType for OCILobLocator         { const ID: Descriptor = Descriptor::Lob; }//FIXME: Может также быть и File
 //#[derive(Debug)] pub enum OCILobRegion {}         impl DescriptorType for OCILobRegion          { const ID: Descriptor = Descriptor::; }
 #[derive(Debug)] pub enum OCIParam {}             impl DescriptorType for OCIParam              { const ID: Descriptor = Descriptor::Param; }
 #[derive(Debug)] pub enum OCIComplexObjectComp {} impl DescriptorType for OCIComplexObjectComp  { const ID: Descriptor = Descriptor::ComplexObjectComp; }
@@ -62,15 +61,3 @@ impl ParamHandle for OCIStmt { const ID: Handle = Handle::Stmt; }
 #[derive(Debug)] pub enum OCIServerDNs {}         impl DescriptorType for OCIServerDNs          { const ID: Descriptor = Descriptor::ServerDN; }
 
 #[derive(Debug)] pub enum OCIType {}
-/*
-pub trait OCILobLocator : DescriptorType {}
-descriptor!(OCILobLocator, Lob);
-descriptor!(OCILobLocator, File);
-*/
-/*
-#[derive(Debug)]
-#[repr(C)]
-pub enum OCILobLocator {
-  Lob {},
-  File {},
-}*/
