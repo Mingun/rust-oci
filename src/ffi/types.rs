@@ -174,7 +174,7 @@ pub enum Descriptor {
 pub enum Attr {
   Server = 6,
   Session = 7,
-  // RowCount = 9,
+  RowCount = 9,
   /// Атрибут на хендле выражения, показывает количество колонок, извлекаемых `select` выражением
   ParamCount = 18,
   Username = 22,
@@ -199,7 +199,7 @@ pub enum Attr {
   /// name of the named data type or a package name for package private types
   TypeName      = 8,
   /// the schema name
-  SchemaName    = 9,
+  // SchemaName    = 9,
   /// type name if package private type
   SubName       = 10,
   /// relative position of col/arg in the list of cols/args

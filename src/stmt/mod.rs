@@ -49,6 +49,8 @@ pub struct Column {
   /// Ширина колонки в байтах. Показывает, сколько байт максимум может занимать значение колонки,
   /// а не занимаемый реально данными объем.
   pub size: usize,
+  /// Количество десятичных цифр для представления чисел для числовых данных.
+  /// Количество десятичных цифр, отводимых под год/день для интеральных типов.
   pub precision: usize,
   /// Returns the scale (number of digits to the right of the decimal point) for conversions from packed and zoned decimal input data types.
   pub scale: usize,
@@ -228,6 +230,12 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   fn param_count(&self) -> Result<c_uint> {
     self.get_(Attr::ParamCount, self.error())
   }
+  /// Получает количество cтрок, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
+  /// или количество строк, полученное последним вызовом fetch для `SELECT` запроса.
+  #[inline]
+  fn row_count(&self) -> Result<c_uint> {
+    self.get_(Attr::RowCount, self.error())
+  }
   /// Получает дескриптор с описанием столбца в полученном списке извлеченных `SELECT`-ом столбцов для указанного столбца.
   ///
   /// # Параметры
@@ -293,15 +301,30 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// вызову [`OCIStmtFetch2()`][3].
   ///
   /// [1]: #method.execute
-  /// [2]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
-  /// [3]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17165
+  /// [2]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
+  /// [3]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17165
   pub fn query(&mut self) -> Result<RowSet> {
     try!(self.execute_impl(0, 0, Default::default()));
 
     RowSet::new(self)
   }
-  pub fn execute(&self) -> Result<()> {
-    self.execute_impl(1, 0, Default::default())
+  /// Выполняет DDL или `INSERT/UPDATE/DELETE` запрос. В последнем случае возвращает количество строк,
+  /// затронутых запросом (т.е. количество добавленных/обновленных/удаленных строк). Для DDL выражений
+  /// (например, `create table`) возвращает `0`.
+  ///
+  /// # OCI вызовы
+  /// Для выполнения выражения непосредственно при вызове данной функции используется OCI-вызов [`OCIStmtExecute()`][1]. Для последующего
+  /// получения количества затронутых строк используется вызов [`OCIAttrGet()`][2].
+  ///
+  /// # Запросы к серверу (1)
+  /// Непосредственно в момент вызова данной функции выполняется один вызов [`OCIStmtExecute()`][1].
+  ///
+  /// [1]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
+  /// [2]: https://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI17130
+  pub fn execute(&self) -> Result<usize> {
+    try!(self.execute_impl(1, 0, Default::default()));
+
+    Ok(try!(self.row_count()) as usize)
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
