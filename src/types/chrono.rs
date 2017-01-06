@@ -156,13 +156,13 @@ impl FromDB for Duration {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::INTERVAL_DS => {
-        from_ds(ty, raw, conn)
+        from_ds(raw, conn)
       },
       t => Err(Error::Conversion(t)),
     }
   }
 }
-fn from_ds(ty: Type, raw: &[u8], conn: &Connection) -> Result<Duration> {
+fn from_ds(raw: &[u8], conn: &Connection) -> Result<Duration> {
   let i: &IntervalDS = unsafe { conn.as_descriptor(raw) };
   let dur = try!(get_day_second(&conn.session, conn.error(), i));
 
