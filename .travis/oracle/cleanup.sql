@@ -27,4 +27,3 @@ begin
 end;
 /
 drop procedure delete_table;
-/
