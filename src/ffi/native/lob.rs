@@ -46,6 +46,21 @@ enum Charset {
   /// For typecheck of `NULL` and `empty_clob()` lits.
   LitNull  = 5,
 }
+#[derive(Debug, Copy, Clone)]
+enum LobOpenMode {
+  /// Readonly mode open for ILOB types.
+  ReadOnly      = 1,
+  /// Read write mode open for ILOBs.
+  ReadWrite     = 2,
+  /// Writeonly mode open for ILOB types.
+  WriteOnly     = 3,
+  /// Appendonly mode open for ILOB types.
+  AppendOnly    = 4,
+  /// Completely overwrite ILOB.
+  FullOverwrite = 5,
+  /// Doing a Full Read of ILOB.
+  FullRead      = 6,
+}
 struct LobImpl<'conn, L: 'conn + OCILobLocator> {
   conn: &'conn Connection<'conn>,
   locator: Descriptor<'conn, L>,
@@ -103,12 +118,35 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(writed as usize)
   }
-
-  pub fn new_reader<'a>(&'a mut self, charset: u16) -> LobReader<'a, L> {
-    LobReader { lob: self, charset: charset }
+  fn open(&mut self, mode: LobOpenMode) -> Result<()> {
+    let res = unsafe {
+      OCILobOpen(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native_mut() as *mut c_void,
+        mode as u8
+      )
+    };
+    self.conn.error().check(res)
   }
-  pub fn new_writer<'a>(&'a mut self, charset: u16) -> LobWriter<'a, L> {
-    LobWriter { lob: self, charset: charset }
+  fn close(&mut self) -> Result<()> {
+    let res = unsafe {
+      OCILobClose(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native_mut() as *mut c_void
+      )
+    };
+    self.conn.error().check(res)
+  }
+
+  pub fn new_reader<'a>(&'a mut self, charset: u16) -> Result<LobReader<'a, L>> {
+    try!(self.open(LobOpenMode::ReadOnly));
+    Ok(LobReader { lob: self, charset: charset })
+  }
+  pub fn new_writer<'a>(&'a mut self, charset: u16) -> Result<LobWriter<'a, L>> {
+    try!(self.open(LobOpenMode::WriteOnly));
+    Ok(LobWriter { lob: self, charset: charset })
   }
 }
 struct LobReader<'lob, L: 'lob + OCILobLocator> {
@@ -121,6 +159,12 @@ impl<'lob, L: 'lob + OCILobLocator> io::Read for LobReader<'lob, L> {
     unimplemented!()
   }
 }
+impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
+  fn drop(&mut self) {
+    //self.lob.close().expect("Error when close LOB");
+  }
+}
+
 struct LobWriter<'lob, L: 'lob + OCILobLocator> {
   lob: &'lob LobImpl<'lob, L>,
   charset: u16,
@@ -132,6 +176,11 @@ impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
+  }
+}
+impl<'lob, L: 'lob + OCILobLocator> Drop for LobWriter<'lob, L> {
+  fn drop(&mut self) {
+    //self.lob.close().expect("Error when close LOB");
   }
 }
 
@@ -351,4 +400,83 @@ extern "C" {
                   cbfp: Option<OCICallbackLobWrite2>,
                   csid: u16,
                   csfrm: u8) -> c_int;
+
+  /// Opens a LOB, internal or external, in the indicated mode.
+  ///
+  /// It is an error to open the same LOB twice. BFILEs cannot be opened in read/write mode. If a user tries to write to
+  /// a LOB or BFILE that was opened in read-only mode, an error is returned.
+  ///
+  /// Opening a LOB requires a round-trip to the server for both internal and external LOBs. For internal LOBs, the open
+  /// triggers other code that relies on the open call. For external LOBs (BFILEs), open requires a round-trip because
+  /// the actual operating system file on the server side is being opened.
+  ///
+  /// It is not necessary to open a LOB to perform operations on it. When using function-based indexes, extensible indexes
+  /// or context, and making multiple calls to update or write to the LOB, you should first call `OCILobOpen()`, then update
+  /// the LOB as many times as you want, and finally call `OCILobClose()`. This sequence of operations ensures that the
+  /// indexes are only updated once at the end of all the write operations instead of once for each write operation.
+  ///
+  /// It is not mandatory that you wrap all LOB operations inside the open and close calls. However, if you open a LOB,
+  /// then you must close it before you commit your transaction. When an internal LOB is closed, it updates the functional
+  /// and domain indexes on the LOB column. It is an error to commit the transaction before closing all opened LOBs that
+  /// were opened by the transaction.
+  ///
+  /// When the error is returned, the LOB is no longer marked as open, but the transaction is successfully committed.
+  /// Hence, all the changes made to the LOB and non-LOB data in the transaction are committed, but the domain and
+  /// function-based indexing are not updated. If this happens, rebuild your functional and domain indexes on the LOB column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes are updated
+  /// each time you write to the LOB. This can adversely affect performance, so if you have functional or domain indexes, Oracle
+  /// recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   The LOB to open. The locator can refer to an internal or external LOB.
+  /// - mode (IN):
+  ///   The mode in which to open the LOB or BFILE. In Oracle8i or later, valid modes for LOBs are `OCI_LOB_READONLY`
+  ///   and `OCI_LOB_READWRITE`. Note that `OCI_FILE_READONLY` exists as input to `OCILobFileOpen()`. `OCI_FILE_READONLY`
+  ///   can be used with `OCILobOpen()` if the input locator is for a BFILE.
+  fn OCILobOpen(svchp: *mut OCISvcCtx,
+                errhp: *mut OCIError,
+                // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                locp: *mut c_void/*OCILobLocator*/,
+                mode: u8) -> c_int;
+
+  /// Closes a previously opened LOB or BFILE.
+  ///
+  /// Closes a previously opened internal or external LOB. No error is returned if the BFILE exists but is not
+  /// opened. An error is returned if the internal LOB is not open.
+  ///
+  /// Closing a LOB requires a round-trip to the server for both internal and external LOBs. For internal LOBs,
+  /// close triggers other code that relies on the close call and for external LOBs (BFILEs), close actually
+  /// closes the server-side operating system file.
+  ///
+  /// It is not mandatory that you wrap all LOB operations inside the open or close calls. However, if you open
+  /// a LOB, then you must close it before you commit your transaction. When an internal LOB is closed, it updates
+  /// the functional and domain indexes on the LOB column. It is an error to commit the transaction before closing
+  /// all opened LOBs that were opened by the transaction.
+  ///
+  /// When the error is returned, the LOB is no longer marked as open, but the transaction is successfully committed.
+  /// Hence, all the changes made to the LOB and non-LOB data in the transaction are committed, but the domain and
+  /// function-based indexing are not updated. If this happens, rebuild your functional and domain indexes on the LOB
+  /// column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes are
+  /// updated each time you write to the LOB. This can adversely affect performance, so if you have functional or domain
+  /// indexes, Oracle recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   The LOB to close. The locator can refer to an internal or external LOB.
+  fn OCILobClose(svchp: *mut OCISvcCtx,
+                 errhp: *mut OCIError,
+                 // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                 locp: *mut c_void/*OCILobLocator*/) -> c_int;
 }
