@@ -1,10 +1,12 @@
 //! Модуль, содержащий код для связывания с C интерфейсом OCI.
 
 macro_rules! descriptor {
-  ($kind:ident, $name:ident) => (
+  ($kind:ty, $name:ident) => (
     #[derive(Debug)]
     pub enum $name {}
-    impl DescriptorType for $name { const ID: Descriptor = Descriptor::$name; }
+    impl $crate::ffi::DescriptorType for $name {
+      const ID: $crate::ffi::types::Descriptor = $crate::ffi::types::Descriptor::$name;
+    }
     impl $kind for $name {}
   );
 }

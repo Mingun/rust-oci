@@ -11,7 +11,14 @@ use ffi::Handle;// Основные типобезопасные примити�
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
 use ffi::native::{OCIError, OCISession, OCINumber};// FFI типы
-use ffi::types::Descriptor;
+
+pub trait OCIDateTime : DescriptorType {}
+descriptor!(OCIDateTime, Date);
+//descriptor!(OCIDateTime, Time);
+//descriptor!(OCIDateTime, TimeWithTZ);
+descriptor!(OCIDateTime, Timestamp);
+descriptor!(OCIDateTime, TimestampWithTZ);
+descriptor!(OCIDateTime, TimestampWithLTZ);
 
 /// `OCITime` - OCI TiMe portion of date
 ///
@@ -49,14 +56,6 @@ impl Default for OCIDate {
     OCIDate { yyyy: 1, mm: 1, dd: 1, time: Default::default() }
   }
 }
-
-pub trait OCIDateTime : DescriptorType {}
-descriptor!(OCIDateTime, Date);
-//descriptor!(OCIDateTime, Time);
-//descriptor!(OCIDateTime, TimeWithTZ);
-descriptor!(OCIDateTime, Timestamp);
-descriptor!(OCIDateTime, TimestampWithTZ);
-descriptor!(OCIDateTime, TimestampWithLTZ);
 
 pub fn get_date<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(i16, u8, u8)> {
   let mut yyyy: i16 = 0;
