@@ -1,9 +1,10 @@
 //! Функции, описанные в разделе [Handle and Descriptor Functions][1] документации Oracle.
 //!
-//! [1]: http://docs.oracle.com/database/121/LNOCI/oci16rel002.htm#LNOCI152
+//! [1]: https://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI152
 
 use std::os::raw::{c_int, c_void, c_uint};
-use super::OCIError;
+
+use ffi::native::OCIError;// FFI типы
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]

@@ -1,11 +1,12 @@
 //! Функции, описанные в разделе [Connect, Authorize, and Initialize Functions][1] документации Oracle,
 //! посвященном установке соединения с базой данных.
 //!
-//! [1]: http://docs.oracle.com/database/121/LNOCI/oci16rel001.htm#LNOCI151
+//! [1]: https://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI151
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ushort};
-use super::{OCIEnv, OCIError, OCIServer, OCISession, OCISvcCtx};
-use super::super::types;
+
+use ffi::types;
+use ffi::native::{OCIEnv, OCIError, OCIServer, OCISession, OCISvcCtx};// FFI типы
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]

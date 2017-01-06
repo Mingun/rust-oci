@@ -1,10 +1,11 @@
 //! Функции, описанные в разделе [Statement Functions][1] документации Oracle,
 //! посвященном подготовке и исполнению запросов (не включая получение данных `SELECT`-запросов).
 //!
-//! [1]: http://docs.oracle.com/database/121/LNOCI/oci17msc001.htm#LNOCI161
+//! [1]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI161
 
 use std::os::raw::{c_int, c_uchar, c_uint, c_ushort, c_void};
-use super::{OCIError, OCISvcCtx, OCISnapshot, OCIStmt};
+
+use ffi::native::{OCIError, OCISvcCtx, OCISnapshot, OCIStmt};// FFI типы
 
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное

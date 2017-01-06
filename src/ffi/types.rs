@@ -248,7 +248,7 @@ pub enum CachingMode {
   /// The mode should be passed as `OCI_PREP2_IMPL_RESULTS_CLIENT` when this call is made in an external procedure
   /// and implicit results need to be processed. See ["OCI Support for Implicit Results"][1] for more details.
   ///
-  /// [1]: http://docs.oracle.com/database/121/LNOCI/oci10new.htm#CEGJCAJI
+  /// [1]: http://docs.oracle.com/database/122/LNOCI/more-oci-advanced-topics.htm#LNOCI73008
   ImplResultsCLient = 0x0400,
 }
 impl Default for CachingMode {

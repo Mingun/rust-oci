@@ -1,18 +1,17 @@
 //! Функции, описанные в разделе [Miscellaneous Functions][1] документации Oracle,
 //! посвященном различным вспомогательным функциям работы с базой данных.
 //!
-//! [1]: http://docs.oracle.com/database/121/LNOCI/oci17msc007.htm#LNOCI17287
+//! [1]: https://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI167
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
 
 use Result;
 use version::Version;
-use ffi::Handle;
 
-use super::{OCIError, HandleType};
+use ffi::Handle;// Основные типобезопасные примитивы
+use ffi::native::VersionHandle;// Типажи для безопасного моста к FFI
 
-/// Типаж, реализуемый хендлами, из которых можно извлечь информацию о версии сервера Oracle.
-pub trait VersionHandle : HandleType {}
+use ffi::native::OCIError;// FFI типы
 
 /// Получает версию клиентской библиотеки. Для получения версии сервера необходимо [установить с ним соединение][1] и
 /// воспользоваться вызовом [`Connection::server_version()`][2].
