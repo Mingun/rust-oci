@@ -7,10 +7,11 @@ use Result;
 use error::{Error, DbError};
 
 use ffi::{check, Env};// Основные типобезопасные примитивы
+use ffi::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
+
 use ffi::attr::AttrHolder;
 use ffi::native::OCIError;// FFI типы
 use ffi::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функции
-use ffi::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
 
 //-------------------------------------------------------------------------------------------------
 /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных

@@ -12,11 +12,12 @@ use error::DbError::NoData;
 use error::DbError::Fault;
 use types::{FromDB, Type, Syntax};
 
-use ffi::{Descriptor, Handle};
+use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
+use ffi::ParamHandle;// Типажи для безопасного моста к FFI
+
 use ffi::attr::AttrHolder;
 use ffi::native::{OCIParam, OCIStmt, OCIBind, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
-use ffi::native::ParamHandle;// Типажи для безопасного моста к FFI
 use ffi::types::Attr;
 use ffi::types::{DefineMode, CachingMode, ExecuteMode, FetchMode};
 

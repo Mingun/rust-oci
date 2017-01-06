@@ -8,7 +8,8 @@ use num_integer::Integer;
 use Result;
 
 use ffi::{types, Handle};// Основные типобезопасные примитивы
-use ffi::native::HandleType;// Типажи для безопасного моста к FFI
+use ffi::HandleType;// Типажи для безопасного моста к FFI
+
 use ffi::native::OCIError;// FFI типы
 use ffi::native::{OCIAttrGet, OCIAttrSet};// FFI функции
 

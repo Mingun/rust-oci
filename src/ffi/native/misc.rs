@@ -9,7 +9,7 @@ use Result;
 use version::Version;
 
 use ffi::Handle;// Основные типобезопасные примитивы
-use ffi::native::VersionHandle;// Типажи для безопасного моста к FFI
+use ffi::VersionHandle;// Типажи для безопасного моста к FFI
 
 use ffi::native::OCIError;// FFI типы
 

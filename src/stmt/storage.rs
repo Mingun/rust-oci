@@ -10,9 +10,9 @@ use stmt::Column;
 use types::{FromDB, Type};
 
 use ffi::{Descriptor, GenericDescriptor};// Основные типобезопасные примитивы
+use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
 use ffi::native::time::{Timestamp, TimestampWithTZ, TimestampWithLTZ, IntervalYM, IntervalDS};
-use ffi::native::DescriptorType;// Типажи для безопасного моста к FFI
 
 #[derive(Debug)]
 pub enum Storage<'d> {

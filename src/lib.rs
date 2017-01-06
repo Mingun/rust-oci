@@ -68,10 +68,11 @@ use types::{CreateMode, AuthMode, Syntax};
 use version::Version;
 
 use ffi::{Env, Server, Handle, Descriptor};// Основные типобезопасные примитивы
+use ffi::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
+
 use ffi::types::{Attr, CredentialMode};
 use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
 use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции
-use ffi::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
 use ffi::native::time::{get_time_offset, sys_timestamp, TimestampWithTZ};
 
 // Для того, чтобы пользоваться функциями типажей, они должны быть в области видимости

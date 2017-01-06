@@ -8,10 +8,11 @@ use std::slice;
 use {Environment, Result};
 
 use ffi::{check, Handle};// Основные типобезопасные примитивы
+use ffi::DescriptorType;// Типажи для безопасного моста к FFI
+
 use ffi::attr::AttrHolder;
 use ffi::native::OCIError;// FFI типы
 use ffi::native::{OCIDescriptorAlloc, OCIDescriptorFree};// FFI функции
-use ffi::native::DescriptorType;// Типажи для безопасного моста к FFI
 use ffi::types;
 
 fn close<T>(native: *const T, id: types::Descriptor) {
