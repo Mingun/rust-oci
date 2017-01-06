@@ -3,6 +3,7 @@
 use std::str;
 use std::u32;
 use std::time::Duration;
+
 use {Connection, Result};
 use error::Error;
 

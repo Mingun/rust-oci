@@ -7,10 +7,10 @@ use num_integer::Integer;
 
 use Result;
 
-use super::{types, Handle};
-use super::native::OCIError;// FFI типы
-use super::native::{OCIAttrGet, OCIAttrSet};// FFI функции
-use super::native::HandleType;// Типажи для безопасного моста к FFI
+use ffi::{types, Handle};// Основные типобезопасные примитивы
+use ffi::native::HandleType;// Типажи для безопасного моста к FFI
+use ffi::native::OCIError;// FFI типы
+use ffi::native::{OCIAttrGet, OCIAttrSet};// FFI функции
 
 //-------------------------------------------------------------------------------------------------
 /// Типаж, позволяющий получать и устанавливать атрибуты тем структурам, которые его реализуют.

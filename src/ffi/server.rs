@@ -6,10 +6,10 @@ use types::AttachMode;
 use version::Version;
 use ffi::native::server_version;
 
-use super::{Handle, Descriptor};
-use super::native::{OCIServer, OCIError};// FFI типы
-use super::native::{OCIServerAttach, OCIServerDetach};// FFI функции
-use super::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
+use ffi::{Handle, Descriptor};// Основные типобезопасные примитивы
+use ffi::native::{OCIServer, OCIError};// FFI типы
+use ffi::native::{OCIServerAttach, OCIServerDetach};// FFI функции
+use ffi::native::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
 //-------------------------------------------------------------------------------------------------
 /// Хранит автоматически закрываемый хендл `OCIServer`, предоставляющий доступ к базе данных
 #[derive(Debug)]

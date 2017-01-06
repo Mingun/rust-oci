@@ -6,11 +6,11 @@
 use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
 
 use Result;
-use ffi::Handle;
 
-use super::DescriptorType;
-use super::{OCIError, OCISession, OCINumber};
-use super::super::types::Descriptor;
+use ffi::Handle;// Основные типобезопасные примитивы
+use ffi::native::DescriptorType;// Типажи для безопасного моста к FFI
+use ffi::native::{OCIError, OCISession, OCINumber};// FFI типы
+use ffi::types::Descriptor;
 
 /// `OCITime` - OCI TiMe portion of date
 ///

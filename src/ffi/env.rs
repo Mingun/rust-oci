@@ -7,10 +7,10 @@ use Result;
 use error::{DbError, Error};
 use types::CreateMode;
 
-use super::{check, Handle};
-use super::native::{OCIEnv, OCIError};// FFI типы
-use super::native::{OCIEnvNlsCreate, OCITerminate};// FFI функции
-use super::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
+use ffi::{check, Handle};// Основные типобезопасные примитивы
+use ffi::native::{OCIEnv, OCIError};// FFI типы
+use ffi::native::{OCIEnvNlsCreate, OCITerminate};// FFI функции
+use ffi::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 pub struct Env<'e> {

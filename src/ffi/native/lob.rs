@@ -4,8 +4,9 @@
 //! [1]: https://docs.oracle.com/database/122/LNOCI/lob-functions.htm#LNOCI162
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ulonglong, c_ushort};
-use super::{OCIEnv, OCIError, OCILobLocator, OCISvcCtx};
-use super::super::types;
+
+use ffi::types;
+use ffi::native::{OCIEnv, OCIError, OCILobLocator, OCISvcCtx};// FFI типы
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]

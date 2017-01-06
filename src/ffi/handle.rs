@@ -6,11 +6,11 @@ use std::ptr;
 use Result;
 use error::{Error, DbError};
 
-use super::{check, Env};
-use super::attr::AttrHolder;
-use super::native::OCIError;// FFI типы
-use super::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функции
-use super::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
+use ffi::{check, Env};// Основные типобезопасные примитивы
+use ffi::attr::AttrHolder;
+use ffi::native::OCIError;// FFI типы
+use ffi::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функции
+use ffi::native::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
 
 //-------------------------------------------------------------------------------------------------
 /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных

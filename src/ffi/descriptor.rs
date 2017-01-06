@@ -7,7 +7,7 @@ use std::slice;
 
 use {Environment, Result};
 
-use ffi::{check, Handle};
+use ffi::{check, Handle};// Основные типобезопасные примитивы
 use ffi::attr::AttrHolder;
 use ffi::native::OCIError;// FFI типы
 use ffi::native::{OCIDescriptorAlloc, OCIDescriptorFree};// FFI функции

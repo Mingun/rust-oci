@@ -67,7 +67,7 @@ use stmt::Statement;
 use types::{CreateMode, AuthMode, Syntax};
 use version::Version;
 
-use ffi::{Env, Server, Handle, Descriptor};
+use ffi::{Env, Server, Handle, Descriptor};// Основные типобезопасные примитивы
 use ffi::types::{Attr, CredentialMode};
 use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
 use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции

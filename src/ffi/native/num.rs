@@ -13,9 +13,9 @@ use {Connection, Result};
 use types::{FromDB, Type};
 use error::Error;
 
-use super::OCIError;
-use super::super::Handle;
-use super::super::types::NumberFlag;
+use ffi::Handle;// Основные типобезопасные примитивы
+use ffi::types::NumberFlag;
+use ffi::native::OCIError;// FFI типы
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
