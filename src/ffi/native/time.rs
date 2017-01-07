@@ -5,7 +5,7 @@
 
 use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
 
-use Result;
+use DbResult;
 
 use ffi::Handle;// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
@@ -57,7 +57,7 @@ impl Default for OCIDate {
   }
 }
 
-pub fn get_date<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(i16, u8, u8)> {
+pub fn get_date<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> DbResult<(i16, u8, u8)> {
   let mut yyyy: i16 = 0;
   let mut mm: u8 = 0;
   let mut dd: u8 = 0;
@@ -77,7 +77,7 @@ pub fn get_date<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError
   }
 }
 
-pub fn get_time<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(u8, u8, u8, u32)> {
+pub fn get_time<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> DbResult<(u8, u8, u8, u32)> {
   let mut hh: u8 = 0;
   let mut mm: u8 = 0;
   let mut ss: u8 = 0;
@@ -98,7 +98,7 @@ pub fn get_time<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError
     e => Err(err.decode(e))
   }
 }
-pub fn get_time_offset<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> Result<(i8, i8)> {
+pub fn get_time_offset<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, datetime: &T) -> DbResult<(i8, i8)> {
   let mut hh: i8 = 0;
   let mut mm: i8 = 0;
   let res = unsafe {
@@ -122,7 +122,7 @@ descriptor!(OCIInterval, IntervalYM);
 descriptor!(OCIInterval, IntervalDS);
 
 /// Получает из указателя на интервал Oracle количество лет и месяцев
-pub fn get_year_month(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalYM) -> Result<[c_int; 2]> {
+pub fn get_year_month(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalYM) -> DbResult<[c_int; 2]> {
   let mut time: [c_int; 2] = [0; 2];
   let res = unsafe {
     OCIIntervalGetYearMonth(
@@ -139,7 +139,7 @@ pub fn get_year_month(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interva
   }
 }
 /// Получает из указателя на интервал Oracle количество дней, часов, минут, секунд и наносекунд, которое он представляет
-pub fn get_day_second(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalDS) -> Result<[c_int; 5]> {
+pub fn get_day_second(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalDS) -> DbResult<[c_int; 5]> {
   let mut time: [c_int; 5] = [0; 5];
   let res = unsafe {
     OCIIntervalGetDaySecond(
@@ -158,7 +158,7 @@ pub fn get_day_second(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interva
     e => Err(err.decode(e))
   }
 }
-pub fn to_number<T: OCIInterval>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &T) -> Result<OCINumber> {
+pub fn to_number<T: OCIInterval>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &T) -> DbResult<OCINumber> {
   let mut num = OCINumber::default();
   let res = unsafe {
     OCIIntervalToNumber(
@@ -174,7 +174,7 @@ pub fn to_number<T: OCIInterval>(hndl: &Handle<OCISession>, err: &Handle<OCIErro
   }
 }
 //-------------------------------------------------------------------------------------------------
-pub fn sys_timestamp<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, sys_date: *mut T) -> Result<()> {
+pub fn sys_timestamp<T: OCIDateTime>(hndl: &Handle<OCISession>, err: &Handle<OCIError>, sys_date: *mut T) -> DbResult<()> {
   let res = unsafe {
     OCIDateTimeSysTimeStamp(
       hndl.native_mut() as *mut c_void,

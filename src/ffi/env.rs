@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use std::os::raw::{c_uint, c_void};
 use std::ptr;
 
-use Result;
-use error::{DbError, Error};
+use DbResult;
+use error::DbError;
 use types::CreateMode;
 
 use ffi::{check, Handle};// Основные типобезопасные примитивы
@@ -22,7 +22,7 @@ pub struct Env<'e> {
   phantom: PhantomData<&'e OCIEnv>,
 }
 impl<'e> Env<'e> {
-  pub fn new(mode: CreateMode) -> Result<Self> {
+  pub fn new(mode: CreateMode) -> DbResult<Self> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIEnvNlsCreate(
@@ -37,7 +37,7 @@ impl<'e> Env<'e> {
     return match res {
       0 => Ok(Env { native: handle, mode: mode, phantom: PhantomData }),
       // Ошибки создания окружения никуда не записываются, т.к. им просто некуда еще записываться
-      e => Err(Error::Db(DbError::Unknown(e as isize)))
+      e => Err(DbError::Unknown(e as isize))
     };
   }
   /// Создает новый хендл в указанном окружении запрашиваемого типа
@@ -46,11 +46,11 @@ impl<'e> Env<'e> {
   /// - err:
   ///   Хендл для сбора ошибок, куда будет записана ошибка в случае, если создание хендла окажется неудачным
   #[inline]
-  pub fn new_handle<T: HandleType, E: ErrorHandle>(&self, err: *mut E) -> Result<Handle<T>> {
+  pub fn new_handle<T: HandleType, E: ErrorHandle>(&self, err: *mut E) -> DbResult<Handle<T>> {
     Handle::new(&self, err)
   }
   #[inline]
-  pub fn new_error_handle(&mut self) -> Result<Handle<OCIError>> {
+  pub fn new_error_handle(&mut self) -> DbResult<Handle<OCIError>> {
     self.new_handle(self.native as *mut OCIEnv)
   }
   /// Получает голый указатель на хендл окружения, используемый для передачи в нативные функции.
@@ -75,7 +75,7 @@ impl<'e> Env<'e> {
   /// [1]: https://community.oracle.com/thread/3779405
   /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17127
   #[deprecated(note = "Calling of this function will result in impossibility to anew initialize oci because of crash: https://community.oracle.com/thread/3779405")]
-  pub fn terminate() -> Result<()> {
+  pub fn terminate() -> DbResult<()> {
     let res = unsafe { OCITerminate(0) };
     // Получить точную причину ошибки в этом месте нельзя, т.к. все структуры уже разрушены
     check(res)

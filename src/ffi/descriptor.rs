@@ -5,7 +5,7 @@ use std::os::raw::{c_int, c_uint, c_void};
 use std::ptr;
 use std::slice;
 
-use {Environment, Result};
+use {Environment, DbResult};
 
 use ffi::{check, Handle};// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
@@ -29,7 +29,7 @@ pub struct Descriptor<'d, T: 'd + DescriptorType> {
   phantom: PhantomData<&'d T>,
 }
 impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
-  pub fn new(env: &'d Environment) -> Result<Self> {
+  pub fn new(env: &'d Environment) -> DbResult<Self> {
     let mut desc = ptr::null_mut();
     let res = unsafe {
       OCIDescriptorAlloc(
@@ -40,7 +40,7 @@ impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
     };
     Self::from_ptr(res, desc as *const T, env.error())
   }
-  pub fn from_ptr(res: c_int, native: *const T, err: &Handle<OCIError>) -> Result<Self> {
+  pub fn from_ptr(res: c_int, native: *const T, err: &Handle<OCIError>) -> DbResult<Self> {
     match res {
       0 => Ok(Descriptor { native: native, phantom: PhantomData }),
       e => Err(err.decode(e)),

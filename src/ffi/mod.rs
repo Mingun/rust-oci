@@ -1,8 +1,8 @@
 
 use std::os::raw::c_int;
 
-use Result;
-use error::{Error, DbError};
+use DbResult;
+use error::DbError;
 
 pub mod attr;
 pub mod types;
@@ -82,9 +82,9 @@ pub trait VersionHandle : HandleType {}
 /// ошибку базы данных в тип Rust, но хендла ошибки еще или уже нет.
 ///
 /// [1]: ../error/enum.DbError.html#variant.Unknown
-fn check(native: c_int) -> Result<()> {
+fn check(native: c_int) -> DbResult<()> {
   return match native {
     0 => Ok(()),
-    e => Err(Error::Db(DbError::Unknown(e as isize)))
+    e => Err(DbError::Unknown(e as isize))
   };
 }

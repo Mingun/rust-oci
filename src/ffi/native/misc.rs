@@ -5,7 +5,7 @@
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
 
-use Result;
+use DbResult;
 use version::Version;
 
 use ffi::Handle;// Основные типобезопасные примитивы
@@ -44,7 +44,7 @@ pub fn client_version() -> Version {
 ///
 /// # Запросы к серверу (1)
 /// Функция выполняет один запрос к серверу при каждом вызове.
-pub fn server_version<T: VersionHandle>(hndl: &Handle<T>, err: &Handle<OCIError>) -> Result<Version> {
+pub fn server_version<T: VersionHandle>(hndl: &Handle<T>, err: &Handle<OCIError>) -> DbResult<Version> {
   let mut ver = 0;
   // Необходимо передать в функцию массив с длиной хотя бы в 1 элемент, иначе программа падает с Segmentation Fault.
   // Чтобы не выделять память, можно просто передать 1 байт в одной переменной.

@@ -6,7 +6,7 @@ use std::mem;
 use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 
-use {Connection, Result};
+use {Connection, DbResult, Result};
 use error::Error;
 use error::DbError::NoData;
 use error::DbError::Fault;
@@ -24,7 +24,7 @@ use ffi::types::{DefineMode, CachingMode, ExecuteMode, FetchMode};
 use self::storage::DefineInfo;
 
 //-------------------------------------------------------------------------------------------------
-fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCIError>) -> Result<Descriptor<'d, OCIParam>> {
+fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCIError>) -> DbResult<Descriptor<'d, OCIParam>> {
   let mut desc = ptr::null_mut();
   let res = unsafe {
     OCIParamGet(
@@ -44,13 +44,13 @@ pub struct Column {
   pub pos: usize,
   /// Тип колонки в базе данных.
   pub type_: Type,
-  /// Название колонки в списке выбора (т.е. либо название колонки в базе дынных, либо ее псевдоним).
+  /// Название колонки в списке выбора (т.е. либо название колонки в базе данных, либо ее псевдоним).
   pub name: String,
   /// Ширина колонки в байтах. Показывает, сколько байт максимум может занимать значение колонки,
   /// а не занимаемый реально данными объем.
   pub size: usize,
   /// Количество десятичных цифр для представления чисел для числовых данных.
-  /// Количество десятичных цифр, отводимых под год/день для интеральных типов.
+  /// Количество десятичных цифр, отводимых под год/день для интервальных типов.
   pub precision: usize,
   /// Returns the scale (number of digits to the right of the decimal point) for conversions from packed and zoned decimal input data types.
   pub scale: usize,
@@ -116,7 +116,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///     нужно использовать при выполнении данной операции
   /// - offset:
   ///   Смещение с буфере со связанными переменными, с которого необходимо начать выполнение 
-  fn execute_impl(&self, count: c_uint, offset: c_uint, mode: ExecuteMode) -> Result<()> {
+  fn execute_impl(&self, count: c_uint, offset: c_uint, mode: ExecuteMode) -> DbResult<()> {
     let res = unsafe {
       OCIStmtExecute(
         self.conn.context.native_mut(),
@@ -138,7 +138,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Количество строк, которые нужно получить из текущей позиции курсора
   /// - index:
   ///   Для режимов `Absolute` и `Relative` определяет номер извлекаемого элемента, в остальных случаях игнорируется.
-  fn fetch(&self, count: c_uint, mode: FetchMode, index: c_int) -> Result<()> {
+  fn fetch(&self, count: c_uint, mode: FetchMode, index: c_int) -> DbResult<()> {
     let res = unsafe {
       OCIStmtFetch2(
         self.native as *mut OCIStmt,
@@ -151,7 +151,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     };
     return self.error().check(res);
   }
-  fn bind_by_pos(&self, pos: c_uint, value: *mut c_void, size: c_int, dty: Type) -> Result<Handle<OCIBind>> {
+  fn bind_by_pos(&self, pos: c_uint, value: *mut c_void, size: c_int, dty: Type) -> DbResult<Handle<OCIBind>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByPos(
@@ -171,7 +171,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
 
     Handle::from_ptr(res, handle, self.error().native_mut())
   }
-  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_int, dty: Type) -> Result<Handle<OCIBind>> {
+  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_int, dty: Type) -> DbResult<Handle<OCIBind>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByName(
@@ -204,7 +204,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Переменная, в которую будет записан признак того, что в столбце содержится `NULL`.
   /// - out_size:
   ///   Количество байт, записанное в буфер. Не превышает его длину
-  fn define(&self, pos: usize, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> Result<()> {
+  fn define(&self, pos: usize, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> DbResult<()> {
     let res = unsafe {
       OCIDefineByPos(
         self.native as *mut OCIStmt,
@@ -227,13 +227,13 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// Получает количество столбцов, извлеченный в `SELECT`-выражении. Необходимо вызывать после выполнения `SELECT`-запроса,
   /// т.к. до этого момента? или в случае выполнения не `SELECT`-запроса, эта информация недоступна.
   #[inline]
-  fn param_count(&self) -> Result<c_uint> {
+  fn param_count(&self) -> DbResult<c_uint> {
     self.get_(Attr::ParamCount, self.error())
   }
   /// Получает количество cтрок, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
   /// или количество строк, полученное последним вызовом fetch для `SELECT` запроса.
   #[inline]
-  fn row_count(&self) -> Result<c_uint> {
+  fn row_count(&self) -> DbResult<c_uint> {
     self.get_(Attr::RowCount, self.error())
   }
   /// Получает дескриптор с описанием столбца в полученном списке извлеченных `SELECT`-ом столбцов для указанного столбца.
@@ -242,7 +242,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// - pos:
   ///   Номер столбца, для которого извлекается информация. Нумерация с 0, в отличие от API оракла, где нумерация идет с 1.
   #[inline]
-  fn param_get(&self, pos: c_uint) -> Result<Descriptor<OCIParam>> {
+  fn param_get(&self, pos: c_uint) -> DbResult<Descriptor<OCIParam>> {
     param_get(self.native, pos + 1, self.error())
   }
 
@@ -345,7 +345,7 @@ impl<'conn, 'key> AttrHolder<OCIStmt> for Statement<'conn, 'key> {
 }
 
 impl<'conn, 'key> super::StatementPrivate for Statement<'conn, 'key> {
-  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> Result<Statement<'c, 'k>> {
+  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> DbResult<Statement<'c, 'k>> {
     let mut stmt = ptr::null_mut();
     let keyPtr = key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
     let keyLen = key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
@@ -465,10 +465,10 @@ impl<'stmt> RowSet<'stmt> {
     let r = Row::new(self).expect("Row::new failed");
     match self.stmt.fetch(1, Default::default(), 0) {
       Ok(_) => Ok(Some(r)),
-      Err(Error::Db(NoData)) => Ok(None),
+      Err(NoData) => Ok(None),
       // ORA-01002: fetch out of sequence - если перезапустить итератор, из которого вычитаны все данные, вернется данная ошибка
-      Err(Error::Db(Fault { code: 1002, .. })) => Ok(None),
-      Err(e) => Err(e),
+      Err(Fault { code: 1002, .. }) => Ok(None),
+      Err(e) => Err(e.into()),
     }
   }
 }

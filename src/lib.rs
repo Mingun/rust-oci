@@ -53,13 +53,16 @@ pub mod version;
 mod ffi;
 
 /// Тип результата, возвращаемый всеми функциями библиотеки, которые могут привести к ошибке.
-/// В большинстве случаев библиотека никогда не генерирует панику, всегда возращая ошибочный
+/// В большинстве случаев библиотека никогда не генерирует панику, всегда возвращая ошибочный
 /// результат в виде ошибке. Немногочисленные исключения документированы особо, и существуют
 /// потому, что внешнее по отношению к библиотеке API не позволяет вернуть ошибку (Например,
 /// из реализации типажа [`Drop`][1]).
 ///
 /// [1]: https://doc.rust-lang.org/std/ops/trait.Drop.html
 pub type Result<T> = std::result::Result<T, error::Error>;
+/// Тип результата, возвращаемый функциями-обертками, непосредственно вызывающие с OCI функции
+/// через FFI интерфейс.
+type DbResult<T> = std::result::Result<T, error::DbError>;
 
 use std::os::raw::c_uint;
 
@@ -121,18 +124,18 @@ impl<'e> Environment<'e> {
   /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI17123
   #[inline]
   pub fn connect<P: Into<ConnectParams>>(&'e self, params: P) -> Result<Connection<'e>> {
-    Connection::new(&self, &params.into())
+    Connection::new(&self, &params.into()).map_err(Into::into)
   }
   /// Создает новый хендл для хранения объектов указанного типа. Хендл будет автоматически закрыт при выходе из зоны видимости
   /// переменной, хранящей его.
   #[inline]
-  fn new_handle<T: HandleType>(&self) -> Result<Handle<T>> {
+  fn new_handle<T: HandleType>(&self) -> DbResult<Handle<T>> {
     self.env.new_handle(self.error.native_mut())
   }
   /// Создает новый дескриптор для хранения объектов указанного типа. Дескриптор будет автоматически закрыт при выходе из зоны
   /// видимости переменной, хранящей его.
   #[inline]
-  fn new_descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+  fn new_descriptor<T: DescriptorType>(&self) -> DbResult<Descriptor<T>> {
     Descriptor::new(&self)
   }
   /// Получает хендл для записи ошибок во время общения с базой данных. В случае возникновения ошибки при вызове
@@ -171,7 +174,7 @@ pub struct Connection<'e> {
   auth_mode: AuthMode,
 }
 impl<'e> Connection<'e> {
-  fn new(env: &'e Environment, params: &ConnectParams) -> Result<Self> {
+  fn new(env: &'e Environment, params: &ConnectParams) -> DbResult<Self> {
     let server = try!(Server::new(env, Some(&params.dblink), params.attach_mode));
     let mut context: Handle<OCISvcCtx > = try!(env.new_handle());
     let mut session: Handle<OCISession> = try!(env.new_handle());
@@ -233,7 +236,7 @@ impl<'e> Connection<'e> {
   /// [1]: ./fn.client_version.html
   /// [2]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17293
   pub fn server_version(&self) -> Result<Version> {
-    self.server.version()
+    self.server.version().map_err(Into::into)
   }
   /// Осуществляет разбор SQL-выражения и создает подготовленное выражение для дальнейшего эффективного исполнения запросов.
   /// Выражение использует родной для сервера базы данных синтаксис разбора запросов. Если вам требуется использовать конкретный
@@ -242,8 +245,8 @@ impl<'e> Connection<'e> {
   /// Полученное выражение не кешируется и повторный вызов данной функции с таким же текстом запроса приведет к запросу на сервер
   /// базы данных для разбора выражения.
   ///
-  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытия соединения автоматически закрывает все
-  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоится об этом, компилятор не позволит иметь
+  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытие соединения автоматически закрывает все
+  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоиться об этом, компилятор не позволит иметь
   /// ссылку на выражение, если соединение будет разрушено (если не использовать небезопасную `unsafe`-магию).
   ///
   /// # OCI вызовы
@@ -268,8 +271,8 @@ impl<'e> Connection<'e> {
   /// Полученное выражение не кешируется и повторный вызов данной функции с таким же текстом запроса приведет к запросу на сервер
   /// базы данных для разбора выражения.
   ///
-  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытия соединения автоматически закрывает все
-  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоится об этом, компилятор не позволит иметь
+  /// Возвращаемый объект выражения живет не дольше соединения, его породившего. Закрытие соединения автоматически закрывает все
+  /// подготовленные выражения. Благодаря концепции времен жизни Rust не нужно беспокоиться об этом, компилятор не позволит иметь
   /// ссылку на выражение, если соединение будет разрушено (если не использовать небезопасную `unsafe`-магию).
   ///
   /// # OCI вызовы
@@ -285,7 +288,7 @@ impl<'e> Connection<'e> {
   /// [1]: #method.prepare
   #[inline]
   pub fn prepare_with_syntax(&'e self, syntax: Syntax, sql: &str) -> Result<Statement<'e, 'e>> {
-    Statement::new(&self, sql, None, syntax)
+    Statement::new(&self, sql, None, syntax).map_err(Into::into)
   }
   /// Получает текущий часовой пояс сессии в виде пары чисел, означающих смещение в часах и минутах.
   /// Диапазон возможных значений результата: от `-12:59` до `+14:00`.
@@ -317,7 +320,7 @@ impl<'e> Connection<'e> {
     // Получаем текущее время сервера. Так как оно возвращается в виде временной метки с часовым поясом,
     // а часовой пояс зависит от часового пояса сессии, то таким образом мы можем получить часовой пояс сессии.
     try!(sys_timestamp(&self.session, self.error(), d.native_mut()));
-    get_time_offset(&self.session, self.error(), d.as_ref())
+    get_time_offset(&self.session, self.error(), d.as_ref()).map_err(Into::into)
   }
 }
 impl<'e> Drop for Connection<'e> {
@@ -350,7 +353,7 @@ trait StatementPrivate {
   ///   синтаксического анализа производится не будет. В этом случае параметр `syntax` не учитывается.
   /// - syntax:
   ///   Правила разбора, которые будет использоваться при анализе SQL-выражения.
-  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> Result<Statement<'c, 'k>>;
+  fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> DbResult<Statement<'c, 'k>>;
 }
 
 #[cfg(test)]

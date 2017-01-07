@@ -5,7 +5,7 @@ use std::ptr;
 use std::slice;
 use num_integer::Integer;
 
-use Result;
+use {DbResult, Result};
 
 use ffi::{types, Handle};// Основные типобезопасные примитивы
 use ffi::HandleType;// Типажи для безопасного моста к FFI
@@ -29,7 +29,7 @@ pub trait AttrHolder<T> {
   }
 
   /// Получает значение указанного атрибута из объекта-владельца атрибутов
-  unsafe fn get(&self, value: *mut c_void, size: &mut c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  unsafe fn get(&self, value: *mut c_void, size: &mut c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let res = OCIAttrGet(
       self.native() as *const c_void, Self::holder_type(),
       value, size, attrtype as c_uint,
@@ -37,7 +37,7 @@ pub trait AttrHolder<T> {
     );
     return err.check(res);
   }
-  fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let res = unsafe {
       OCIAttrSet(
         self.native_mut() as *mut c_void, Self::holder_type(),
@@ -49,7 +49,7 @@ pub trait AttrHolder<T> {
   }
 
 //-------------------------------------------------------------------------------------------------
-  fn get_<I: Integer>(&self, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<I> {
+  fn get_<I: Integer>(&self, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<I> {
     let mut res = I::zero();
     let ptr = &mut res as *mut I;
     try!(unsafe { self.get(ptr as *mut c_void, &mut 0, attrtype, err) });
@@ -69,16 +69,16 @@ pub trait AttrHolder<T> {
     }
   }
 //-------------------------------------------------------------------------------------------------
-  fn set_<I: Integer>(&mut self, value: I, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  fn set_<I: Integer>(&mut self, value: I, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let ptr = &value as *const I;
     self.set(ptr as *mut c_void, mem::size_of::<I>() as c_uint, attrtype, err)
   }
   /// Устанавливает строковый атрибут хендлу
-  fn set_str(&mut self, value: &str, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  fn set_str(&mut self, value: &str, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     self.set(value.as_ptr() as *mut c_void, value.len() as c_uint, attrtype, err)
   }
   /// Устанавливает хендл-атрибут хендлу
-  fn set_handle<U: HandleType>(&mut self, value: &Handle<U>, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<()> {
+  fn set_handle<U: HandleType>(&mut self, value: &Handle<U>, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     self.set(value.native() as *mut c_void, 0, attrtype, err)
   }
 }

@@ -9,7 +9,7 @@ use std::mem::size_of;
 use num_traits::{Signed, Unsigned};
 use num_integer::Integer;
 
-use {Connection, Result};
+use {Connection, DbResult, Result};
 use types::{FromDB, Type};
 use error::Error;
 
@@ -95,13 +95,13 @@ extern "C" {
 pub struct OCINumber([u8; 22]);
 
 impl OCINumber {
-  pub fn to_u<I: Integer + Unsigned>(&self, err: &Handle<OCIError>) -> Result<I> {
+  pub fn to_u<I: Integer + Unsigned>(&self, err: &Handle<OCIError>) -> DbResult<I> {
     self.to(err, NumberFlag::Unsigned)
   }
-  pub fn to_i<I: Integer + Signed>(&self, err: &Handle<OCIError>) -> Result<I> {
+  pub fn to_i<I: Integer + Signed>(&self, err: &Handle<OCIError>) -> DbResult<I> {
     self.to(err, NumberFlag::Signed)
   }
-  fn to<I: Integer>(&self, err: &Handle<OCIError>, signed: NumberFlag) -> Result<I> {
+  fn to<I: Integer>(&self, err: &Handle<OCIError>, signed: NumberFlag) -> DbResult<I> {
     let mut result: I = I::zero();
     let res = unsafe {
       OCINumberToInt(

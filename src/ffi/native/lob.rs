@@ -7,7 +7,7 @@ use std::io;
 use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ulonglong, c_ushort};
 use std::ptr;
 
-use {Connection, Result};
+use {Connection, DbResult};
 
 use ffi::Descriptor;// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
@@ -66,10 +66,10 @@ struct LobImpl<'conn, L: 'conn + OCILobLocator> {
   locator: Descriptor<'conn, L>,
 }
 impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
-  fn new(conn: &'conn Connection) -> Result<Self> {
+  fn new(conn: &'conn Connection) -> DbResult<Self> {
     Ok(LobImpl { conn: conn, locator: try!(conn.server.new_descriptor()) })
   }
-  fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> Result<usize> {
+  fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
     // Количество того, сколько читать и сколько было реально прочитано
     let mut readed = buf.len() as u64;
     let res = unsafe {
@@ -93,7 +93,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(readed as usize)
   }
-  fn write(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &[u8]) -> Result<usize> {
+  fn write(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -118,7 +118,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(writed as usize)
   }
-  fn open(&mut self, mode: LobOpenMode) -> Result<()> {
+  fn open(&mut self, mode: LobOpenMode) -> DbResult<()> {
     let res = unsafe {
       OCILobOpen(
         self.conn.context.native_mut(),
@@ -129,7 +129,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  fn close(&mut self) -> Result<()> {
+  fn close(&mut self) -> DbResult<()> {
     let res = unsafe {
       OCILobClose(
         self.conn.context.native_mut(),
@@ -140,11 +140,11 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     self.conn.error().check(res)
   }
 
-  pub fn new_reader<'a>(&'a mut self, charset: u16) -> Result<LobReader<'a, L>> {
+  pub fn new_reader<'a>(&'a mut self, charset: u16) -> DbResult<LobReader<'a, L>> {
     try!(self.open(LobOpenMode::ReadOnly));
     Ok(LobReader { lob: self, charset: charset })
   }
-  pub fn new_writer<'a>(&'a mut self, charset: u16) -> Result<LobWriter<'a, L>> {
+  pub fn new_writer<'a>(&'a mut self, charset: u16) -> DbResult<LobWriter<'a, L>> {
     try!(self.open(LobOpenMode::WriteOnly));
     Ok(LobWriter { lob: self, charset: charset })
   }

@@ -1,7 +1,7 @@
 use std::os::raw::{c_int, c_uint};
 use std::ptr;
 
-use {Environment, Result};
+use {Environment, DbResult};
 use types::AttachMode;
 use version::Version;
 use ffi::native::server_version;
@@ -22,7 +22,7 @@ pub struct Server<'env> {
 }
 impl<'env> Server<'env> {
   /// Осуществляет подключение к указанному серверу в рамках данного окружения
-  pub fn new(env: &'env Environment, dblink: Option<&str>, mode: AttachMode) -> Result<Self> {
+  pub fn new(env: &'env Environment, dblink: Option<&str>, mode: AttachMode) -> DbResult<Self> {
     let server: Handle<OCIServer> = try!(env.new_handle());
     let (ptr, len) = match dblink {
       Some(db) => (db.as_ptr(), db.len()),
@@ -41,11 +41,11 @@ impl<'env> Server<'env> {
     };
   }
   #[inline]
-  pub fn new_handle<T: HandleType>(&self) -> Result<Handle<T>> {
+  pub fn new_handle<T: HandleType>(&self) -> DbResult<Handle<T>> {
     self.env.new_handle()
   }
   #[inline]
-  pub fn new_descriptor<T: DescriptorType>(&self) -> Result<Descriptor<T>> {
+  pub fn new_descriptor<T: DescriptorType>(&self) -> DbResult<Descriptor<T>> {
     self.env.new_descriptor()
   }
   /// Получает хендл для записи ошибок во время общения с базой данных. Хендл берется из окружения, которое породило
@@ -63,7 +63,7 @@ impl<'env> Server<'env> {
   ///
   /// # Запросы к серверу (1)
   /// Функция выполняет один запрос к серверу при каждом вызове.
-  pub fn version(&self) -> Result<Version> {
+  pub fn version(&self) -> DbResult<Version> {
     server_version(&self.handle, self.error())
   }
 }

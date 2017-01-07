@@ -3,8 +3,8 @@ use std::fmt;
 use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_void};
 use std::ptr;
 
-use Result;
-use error::{Error, DbError};
+use DbResult;
+use error::DbError;
 
 use ffi::{check, Env};// Основные типобезопасные примитивы
 use ffi::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
@@ -84,7 +84,7 @@ impl<T: HandleType> Handle<T> {
   ///   Окружение, которое будет владеть созданным хендлом
   /// - err:
   ///   Хендл для сбора ошибок при создании хендла. Может отсутствовать (когда создается сам хендл для сбора ошибок)
-  pub fn new<E: ErrorHandle>(env: &Env, err: *mut E) -> Result<Handle<T>> {
+  pub fn new<E: ErrorHandle>(env: &Env, err: *mut E) -> DbResult<Handle<T>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIHandleAlloc(
@@ -95,10 +95,10 @@ impl<T: HandleType> Handle<T> {
     };
     Self::from_ptr(res, handle as *mut T, err)
   }
-  pub fn from_ptr<E: ErrorHandle>(res: c_int, native: *mut T, err: *mut E) -> Result<Handle<T>> {
+  pub fn from_ptr<E: ErrorHandle>(res: c_int, native: *mut T, err: *mut E) -> DbResult<Handle<T>> {
     match res {
       0 => Ok(Handle { native: native }),
-      e => Err(Error::Db(decode_error(Some(err), e))),
+      e => Err(decode_error(Some(err), e)),
     }
   }
   #[inline]
@@ -134,10 +134,10 @@ impl<T: HandleType> AttrHolder<T> for Handle<T> {
 
 impl Handle<OCIError> {
   /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
-  pub fn decode(&self, result: c_int) -> Error {
-    Error::Db(decode_error(Some(self.native), result))
+  pub fn decode(&self, result: c_int) -> DbError {
+    decode_error(Some(self.native), result)
   }
-  pub fn check(&self, result: c_int) -> Result<()> {
+  pub fn check(&self, result: c_int) -> DbResult<()> {
     match result {
       0 => Ok(()),
       e => Err(self.decode(e)),
