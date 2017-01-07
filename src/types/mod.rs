@@ -7,6 +7,9 @@ use std::time::Duration;
 use {Connection, Result};
 use error::Error;
 
+pub use self::num::OCINumber;
+
+mod num;
 #[cfg(feature = "with-chrono")]
 mod chrono;
 
@@ -259,31 +262,6 @@ pub trait FromDB : Sized {
   ///   Соединение, в рамках которого было выполнено выражение, извлекшее представленные данные.
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self>;
 }
-
-macro_rules! simple_from {
-  ($ty:ty, $($types:ident),+) => (
-    impl FromDB for $ty {
-      fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
-        match ty {
-          $(Type::$types)|+ => Ok(unsafe { *(raw.as_ptr() as *const $ty) }),
-          t => Err(Error::Conversion(t)),
-        }
-      }
-    }
-  )
-}
-simple_from!(f32, FLT, BFLOAT);
-simple_from!(f64, FLT, BDOUBLE);
-
-// Чтобы оракл поместил данные в буфер в этих форматах, ему нужно при define-е указать соответствующую
-// длину переменной, а сейчас там всегда указывается длина столбца. Таким образом, оракл всегда будет
-// возвращать данные в VNU формате
-simple_from!( i8, INT);
-simple_from!(i16, INT);
-simple_from!(i32, INT);
-simple_from!(i64, INT);
-
-simple_from!(u64, INT, UIN);
 
 impl FromDB for String {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {

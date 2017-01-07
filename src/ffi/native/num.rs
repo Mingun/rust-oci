@@ -4,17 +4,9 @@
 //! [1]: https://docs.oracle.com/database/122/LNOCI/oci-NUMBER-functions.htm
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
-use std::mem::size_of;
 
-use num_traits::{Signed, Unsigned};
-use num_integer::Integer;
+use types::OCINumber;
 
-use {Connection, DbResult, Result};
-use types::{FromDB, Type};
-use error::Error;
-
-use ffi::Handle;// Основные типобезопасные примитивы
-use ffi::types::NumberFlag;
 use ffi::native::OCIError;// FFI типы
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
@@ -88,53 +80,4 @@ extern "C" {
                          nls_p_length: c_uint,
                          buf_size: *mut c_uint,
                          buf: *mut c_uchar) -> c_int;
-}
-
-#[derive(Debug)]
-#[repr(C)]
-pub struct OCINumber([u8; 22]);
-
-impl OCINumber {
-  pub fn to_u<I: Integer + Unsigned>(&self, err: &Handle<OCIError>) -> DbResult<I> {
-    self.to(err, NumberFlag::Unsigned)
-  }
-  pub fn to_i<I: Integer + Signed>(&self, err: &Handle<OCIError>) -> DbResult<I> {
-    self.to(err, NumberFlag::Signed)
-  }
-  fn to<I: Integer>(&self, err: &Handle<OCIError>, signed: NumberFlag) -> DbResult<I> {
-    let mut result: I = I::zero();
-    let res = unsafe {
-      OCINumberToInt(
-        err.native_mut(),
-        self.0.as_ptr() as *const OCINumber,
-        size_of::<I>() as c_uint,
-        signed as c_uint,
-        &mut result as *mut I as *mut c_void
-      )
-    };
-    match res {
-      0 => Ok(result),
-      e => Err(err.decode(e)),
-    }
-  }
-}
-impl Default for OCINumber {
-  fn default() -> Self {
-    OCINumber([0; 22])
-  }
-}
-impl FromDB for OCINumber {
-  fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
-    match ty {
-      Type::VNU => {
-        if raw.len() != 22 {
-          return Err(Error::Conversion(ty));
-        }
-        let mut r = OCINumber::default();
-        r.0.clone_from_slice(raw);
-        Ok(r)
-      },
-      t => Err(Error::Conversion(t)),
-    }
-  }
 }

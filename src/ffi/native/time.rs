@@ -6,11 +6,12 @@
 use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
 
 use DbResult;
+use types::OCINumber;
 
 use ffi::Handle;// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
-use ffi::native::{OCIError, OCISession, OCINumber};// FFI типы
+use ffi::native::{OCIError, OCISession};// FFI типы
 
 pub trait OCIDateTime : DescriptorType {}
 descriptor!(OCIDateTime, Date);

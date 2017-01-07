@@ -16,8 +16,8 @@ mod conn;
 mod hndl;
 mod misc;
 mod stmt;
-mod lob;
-mod num;
+pub mod lob;
+pub mod num;
 pub mod time;
 
 use ffi::{HandleType, DescriptorType};// признаки хендла/дескриптора
@@ -30,8 +30,6 @@ pub use self::conn::*;
 pub use self::hndl::*;
 pub use self::misc::*;
 pub use self::stmt::*;
-pub use self::lob::*;
-pub use self::num::*;
 
 
 #[derive(Debug)] pub enum OCIDescribe {} impl HandleType for OCIDescribe { const ID: Handle = Handle::Describe; }
