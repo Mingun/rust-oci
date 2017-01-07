@@ -50,6 +50,34 @@ insert into type_text values(0,--NULL тест
   -- nchar
   null, null
 );
+insert into type_text values(1,
+  -- long
+  rpad('*', 10, '*'),
+  -- varchar2
+  '1', '2',
+  rpad('*', 10, '*'), rpad('*', 10, '*'),
+  -- nvarchar2
+  '3', rpad('*', 10, '*'),
+  -- char
+  '4', '5',
+  rpad('*', 10, '*'), rpad('*', 10, '*'),
+  -- nchar
+  '6', rpad('*', 10, '*')
+);
+insert into type_text values(2,
+  -- long
+  rpad('*', 100, '*'),
+  -- varchar2
+  '1', '2',
+  rpad('*', 4000, '*'), rpad('*', 4000, '*'),
+  -- nvarchar2
+  '3', rpad('*', 1000, '*'),
+  -- char
+  '4', '5',
+  rpad('*', 2000, '*'), rpad('*', 2000, '*'),
+  -- nchar
+  '6', rpad('*', 1000, '*')
+);
 ---------------------------------------------------------------------------------------------------
 create table type_number (
   id number(2) not null primary key,-- номер теста
