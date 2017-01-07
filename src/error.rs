@@ -1,5 +1,9 @@
 //! Виды ошибок, которые могут генерироваться библиотекой.
 
+use std::convert::From;
+use std::error;
+use std::fmt;
+
 use types::Type;
 
 /// Ошибки, возникающие при вызове нативных функций Oracle,
@@ -26,11 +30,29 @@ pub enum DbError {
   /// Хендл, переданный в функцию, оказался некорректным
   /// (функция вернула код `OCI_INVALID_HANDLE (==-2)`).
   InvalidHandle,
-  ///
-  /// (функция вернула код `OCI_STILL_EXECUTING (==-3123)`).
+  /// Возвращается из некоторых функций, в неблокирующем режиме, означает, что асинхронная операция
+  /// начата, но еще не завершена (функция вернула код `OCI_STILL_EXECUTING (==-3123)`).
   StillExecuting,
   /// Функция вернула неизвестный код ошибки, не покрытый ни одним из предыдущих вариантов
   Unknown(isize),
+}
+impl fmt::Display for DbError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+impl error::Error for DbError {
+  fn description(&self) -> &str {
+    match *self {
+      DbError::Info => "Success execution, but diagnostic information present",
+      DbError::NeedData => "Need additional data for continue execution",
+      DbError::NoData => "No data",
+      DbError::Fault { ref message, .. } => &message,
+      DbError::InvalidHandle => "Invalid handle passed to function",
+      DbError::StillExecuting => "Asynchronous call of function not yet completed, still executing",
+      DbError::Unknown(_) => "Unknown return code",
+    }
+  }
 }
 /// Ошибка, которую может вернуть библиотека. Включает ошибки взаимодействия с базой данных,
 /// ошибки конвертации значений
@@ -46,4 +68,9 @@ pub enum Error {
   /// [get]: ../stmt/struct.Row.html#method.get
   /// [row]: ../stmt/struct.Row.html
   InvalidColumn,
+}
+impl From<DbError> for Error {
+  fn from(err: DbError) -> Self {
+    Error::Db(err)
+  }
 }
