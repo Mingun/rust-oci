@@ -7,9 +7,8 @@ use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use error::{Error, Info};
-use error::DbError::NoData;
-use error::DbError::Fault;
+use error::{self, Error};
+use error::DbError::{Info, NoData, Fault};
 use types::{FromDB, Type, Syntax};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
@@ -375,6 +374,10 @@ pub struct Row<'rs> {
   rs: &'rs RowSet<'rs>,
   /// Массив данных для каждой колонки.
   data: Vec<DefineInfo<'rs>>,
+  /// Диагностическая информация, полученная при извлечении данных, если есть.
+  /// Например, может содержать информацию о том, что значение колонки было получено не полностью
+  /// из-за недостаточного размера принимающего буфера.
+  pub info: Option<Vec<error::Info>>,
 }
 impl<'d> Row<'d> {
   fn new(rs: &'d RowSet) -> Result<Self> {
@@ -386,7 +389,7 @@ impl<'d> Row<'d> {
       try!(rs.stmt.define(c.pos, c.bind_type(), data.last_mut().unwrap(), Default::default()));
     }
 
-    Ok(Row { rs: rs, data: data })
+    Ok(Row { rs: rs, data: data, info: None })
   }
   /// Получает описание столбца списка выбора результата `SELECT`-выражения по указанному индексу.
   #[inline]
@@ -462,12 +465,16 @@ impl<'stmt> RowSet<'stmt> {
   pub fn next(&'stmt self) -> Result<Option<Row<'stmt>>> {
     // Подготавливаем место в памяти для извлечения данных.
     // TODO: его можно переиспользовать, незачем создавать каждый раз.
-    let r = Row::new(self).expect("Row::new failed");
+    let mut r = Row::new(self).expect("Row::new failed");
     match self.stmt.fetch(1, Default::default(), 0) {
       Ok(_) => Ok(Some(r)),
+      Err(Info(data)) => {
+        r.info = Some(data);
+        Ok(Some(r))
+      }
       Err(NoData) => Ok(None),
       // ORA-01002: fetch out of sequence - если перезапустить итератор, из которого вычитаны все данные, вернется данная ошибка
-      Err(Fault(Info { code: 1002, .. })) => Ok(None),
+      Err(Fault(error::Info { code: 1002, .. })) => Ok(None),
       Err(e) => Err(e.into()),
     }
   }
