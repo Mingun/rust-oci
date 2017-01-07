@@ -21,6 +21,4 @@ before_install:
   - .travis/oracle/install.sh
 
 before_script:
-  - exit | "$ORACLE_HOME/bin/sqlplus" -L -S / @.travis/oracle/cleanup.sql
-  - exit | "$ORACLE_HOME/bin/sqlplus" -L -S / @.travis/oracle/prepare.sql
-  - exit | "$ORACLE_HOME/bin/sqlplus" -L -S / as sysdba @.travis/oracle/prepare-doc-examples.sql
+  - .travis/oracle/prepare.sh

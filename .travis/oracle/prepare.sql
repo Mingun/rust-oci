@@ -2,7 +2,7 @@
 -- определениях таблиц заполнены разделителем '--------------------------------------'.
 ---------------------------------------------------------------------------------------------------
 create table type_text (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   -- Устаревший тип столбца
   col0 long,
@@ -36,7 +36,7 @@ create table type_text (
   -- для UTF-16 это 1000 символов, для UTF-8 - 2000/3 ~ 666 символов
   col12 nchar(1000)
 );
-insert into type_text values(0,
+insert into type_text values(0,--NULL тест
   -- long
   null,
   -- varchar2
@@ -52,7 +52,7 @@ insert into type_text values(0,
 );
 ---------------------------------------------------------------------------------------------------
 create table type_number (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   -- Минимальный размер
   col0 number(1),
@@ -67,7 +67,7 @@ create table type_number (
   col4 binary_float,
   col5 binary_double
 );
-insert into type_number values(0,
+insert into type_number values(0,--NULL тест
   -- number
   null, null,
   -- float
@@ -77,7 +77,7 @@ insert into type_number values(0,
 );
 ---------------------------------------------------------------------------------------------------
 create table type_time (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   col0 date,
 --------------------------------------
@@ -97,7 +97,7 @@ create table type_time (
   col9  interval year(9) to month,
   col10 interval day(9) to second(9)
 );
-insert into type_time values(0,
+insert into type_time values(0,--NULL тест
   -- date
   null,
   -- timestamp
@@ -109,7 +109,7 @@ insert into type_time values(0,
 );
 ---------------------------------------------------------------------------------------------------
 create table type_bin (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   -- Минимальный размер
   col0 raw(1),
@@ -117,12 +117,12 @@ create table type_bin (
   col1 raw(2000),
   col2 long raw
 );
-insert into type_bin values(0,
+insert into type_bin values(0,--NULL тест
   null, null, null
 );
 ---------------------------------------------------------------------------------------------------
 create table type_lob (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   col0 clob,
   col1 nclob,
@@ -130,15 +130,21 @@ create table type_lob (
   col2 blob,
   col3 bfile
 );
-insert into type_lob values(0,
+insert into type_lob values(0,--NULL тест
   -- clob
   null, null,
   -- blob
   null, null
 );
+insert into type_lob values (1,
+  rpad('*', 100, '*'),
+  rpad('*', 100, '*'),
+  utl_raw.cast_to_raw(rpad('*', 100, '*')),
+  bfilename('test_bfiles', 'bfile')
+);
 ---------------------------------------------------------------------------------------------------
 create table type_specific (
-  id number(2) not null,-- номер теста
+  id number(2) not null primary key,-- номер теста
 --------------------------------------
   col0 rowid,
 --------------------------------------
@@ -147,7 +153,7 @@ create table type_specific (
   -- Максимальный размер
   col2 urowid(4000)
 );
-insert into type_specific values(0,
+insert into type_specific values(0,--NULL тест
   -- rowid
   null,
   -- urowid
