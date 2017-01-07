@@ -20,7 +20,7 @@ mod chrono;
 #[allow(deprecated)]// Позволяем deprecated внутри перечисления из-за https://github.com/rust-lang/rust/issues/38832
 #[repr(u16)]
 pub enum Type {
-  /// (ORANET TYPE) character string
+  /// (ORANET TYPE) character string. У колонок с типами `varchar2/nvarchar2`.
   CHR  = 1,
   /// (ORANET TYPE) oracle numeric
   NUM  = 2,
@@ -63,7 +63,7 @@ pub enum Type {
   LVC  = 94,
   /// Longer long binary
   LVB  = 95,
-  /// Ansi fixed char
+  /// Ansi fixed char. У колонок с типами `char/nchar`.
   AFC  = 96,
   /// Ansi Var char
   AVC  = 97,
@@ -266,7 +266,8 @@ pub trait FromDB : Sized {
 impl FromDB for String {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
-      Type::CHR => str::from_utf8(raw).map(str::to_owned).map_err(|_| Error::Conversion(Type::CHR)),
+      Type::CHR |
+      Type::AFC => str::from_utf8(raw).map(str::to_owned).map_err(|_| Error::Conversion(Type::CHR)),
       t => Err(Error::Conversion(t)),
     }
   }
