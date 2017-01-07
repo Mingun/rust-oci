@@ -13,6 +13,7 @@ use ffi::{Descriptor, GenericDescriptor};// Основные типобезоп�
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
 use ffi::native::time::{Timestamp, TimestampWithTZ, TimestampWithLTZ, IntervalYM, IntervalDS};
+use ffi::native::lob::{Lob, File};
 
 #[derive(Debug)]
 pub enum Storage<'d> {
@@ -77,7 +78,22 @@ impl<'d> Drop for Storage<'d> {
   }
 }
 
-
+macro_rules! alloc {
+  (
+    $stmt:expr, $col:expr,
+    $($kind:ident, $ty:ty),*
+  ) => (
+    match $col.type_ {
+      $(
+        Type::$kind => {
+          let d: Descriptor<'d, $ty> = try!($stmt.conn.server.new_descriptor());
+          Ok(d.into())
+        }
+      )*
+      _ => Ok(Vec::with_capacity($col.size).into()),
+    }
+  );
+}
 /// Хранилище буферов для биндинга результатов, извлекаемых из базы, для одной колонки
 #[derive(Debug)]
 pub struct DefineInfo<'d> {
@@ -95,30 +111,19 @@ pub struct DefineInfo<'d> {
 impl<'d> DefineInfo<'d> {
   /// Создает буферы для хранения информации, извлекаемой из базы
   pub fn new(stmt: &'d Statement, column: &Column) -> Result<Self> {
-    match column.type_ {
-      //Type::DAT |
-      Type::TIMESTAMP => {
-        let d: Descriptor<'d, Timestamp> = try!(stmt.conn.server.new_descriptor());
-        Ok(d.into())
-      }
-      Type::TIMESTAMP_TZ => {
-        let d: Descriptor<'d, TimestampWithTZ> = try!(stmt.conn.server.new_descriptor());
-        Ok(d.into())
-      }
-      Type::TIMESTAMP_LTZ => {
-        let d: Descriptor<'d, TimestampWithLTZ> = try!(stmt.conn.server.new_descriptor());
-        Ok(d.into())
-      },
-      Type::INTERVAL_YM => {
-        let d: Descriptor<'d, IntervalYM> = try!(stmt.conn.server.new_descriptor());
-        Ok(d.into())
-      }
-      Type::INTERVAL_DS => {
-        let d: Descriptor<'d, IntervalDS> = try!(stmt.conn.server.new_descriptor());
-        Ok(d.into())
-      }
-      _ => Ok(Vec::with_capacity(column.size).into()),
-    }
+    alloc!(stmt, column,
+      TIMESTAMP, Timestamp,
+      TIMESTAMP_TZ, TimestampWithTZ,
+      TIMESTAMP_LTZ, TimestampWithLTZ,
+
+      INTERVAL_YM, IntervalYM,
+      INTERVAL_DS, IntervalDS,
+
+      CLOB, Lob,
+      BLOB, Lob,
+      BFILEE, File,
+      CFILEE, File
+    )
   }
   #[inline]
   pub fn as_ptr(&mut self) -> *mut c_void {
