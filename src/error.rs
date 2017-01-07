@@ -69,6 +69,26 @@ pub enum Error {
   /// [row]: ../stmt/struct.Row.html
   InvalidColumn,
 }
+impl fmt::Display for Error {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+impl error::Error for Error {
+  fn description(&self) -> &str {
+    match *self {
+      Error::Db(ref err) => err.description(),
+      Error::Conversion(_) => "Can't convert value from/to Rust to DB type",
+      Error::InvalidColumn => "Nonexisting column",
+    }
+  }
+  fn cause(&self) -> Option<&error::Error> {
+    match *self {
+      Error::Db(ref err) => Some(err),
+      _ => None,
+    }
+  }
+}
 impl From<DbError> for Error {
   fn from(err: DbError) -> Self {
     Error::Db(err)
