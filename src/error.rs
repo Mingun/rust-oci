@@ -6,12 +6,21 @@ use std::fmt;
 
 use types::Type;
 
+/// Информация об одной ошибке/предупреждении Oracle
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Info {
+  /// Код ошибки оракла, `ORA-xxxxx`.
+  pub code: isize,
+  /// Сообщение оракла об ошибке, полученной функцией `OCIErrorGet()`.
+  pub message: String,
+}
+
 /// Ошибки, возникающие при вызове нативных функций Oracle,
 #[derive(Debug)]
 pub enum DbError {
   /// Функция выполнилась успешно, но есть диагностическая информация
   /// (функция вернула код `OCI_SUCCESS_WITH_INFO (==1)`).
-  Info,
+  Info(Vec<Info>),
   /// Функция при своем выполнении исчерпала все данные, предоставленные ей и ей требуется еще
   /// (функция вернула код `OCI_NEED_DATA (==99)`).
   NeedData,
@@ -21,12 +30,7 @@ pub enum DbError {
 
   /// Ошибка вызова одной из функций API Oracle (функция вернула код `OCI_ERROR (==-1)`).
   /// Содержит код и сообщение об ошибке, полученное вызовом функции `OCIErrorGet()`.
-  Fault {
-    /// Код ошибки оракла, `ORA-xxxxx`.
-    code: isize,
-    /// Сообщение оракла об ошибке, полученной функцией `OCIErrorGet()`.
-    message: String,
-  },
+  Fault(Info),
   /// Хендл, переданный в функцию, оказался некорректным
   /// (функция вернула код `OCI_INVALID_HANDLE (==-2)`).
   InvalidHandle,
@@ -44,10 +48,10 @@ impl fmt::Display for DbError {
 impl error::Error for DbError {
   fn description(&self) -> &str {
     match *self {
-      DbError::Info => "Success execution, but diagnostic information present",
+      DbError::Info(_) => "Success execution, but diagnostic information present",
       DbError::NeedData => "Need additional data for continue execution",
       DbError::NoData => "No data",
-      DbError::Fault { ref message, .. } => &message,
+      DbError::Fault(ref err) => &err.message,
       DbError::InvalidHandle => "Invalid handle passed to function",
       DbError::StillExecuting => "Asynchronous call of function not yet completed, still executing",
       DbError::Unknown(_) => "Unknown return code",

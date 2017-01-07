@@ -7,7 +7,7 @@ use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use error::Error;
+use error::{Error, Info};
 use error::DbError::NoData;
 use error::DbError::Fault;
 use types::{FromDB, Type, Syntax};
@@ -467,7 +467,7 @@ impl<'stmt> RowSet<'stmt> {
       Ok(_) => Ok(Some(r)),
       Err(NoData) => Ok(None),
       // ORA-01002: fetch out of sequence - если перезапустить итератор, из которого вычитаны все данные, вернется данная ошибка
-      Err(Fault { code: 1002, .. }) => Ok(None),
+      Err(Fault(Info { code: 1002, .. })) => Ok(None),
       Err(e) => Err(e.into()),
     }
   }

@@ -4,7 +4,7 @@ use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_void};
 use std::ptr;
 
 use DbResult;
-use error::DbError;
+use error::{DbError, Info};
 
 use ffi::{check, Env};// Основные типобезопасные примитивы
 use ffi::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
@@ -22,10 +22,10 @@ use ffi::native::{OCIHandleAlloc, OCIHandleFree, OCIErrorGet};// FFI функц�
 ///   в тех случаях, когда его нет (создание этого хендла ошибки и, почему-то, окружения), можно использовать
 ///   хендл окружения `OCIEnv`
 /// - error_no:
-///   Вызовы функций могут возвращать множество ошибок. Это получаемый номер ошибки
+///   Вызовы функций могут возвращать множество ошибок. Это получаемый номер ошибки (нумерация с 1)
 /// - msg:
 ///   Буфер, куда будет записано сообщение оракла об ошибке
-fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_int, c_int, String) {
+fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_int, Info) {
   let mut code: c_int = 0;
   // Сообщение получается в кодировке, которую установили для хендла окружения.
   // Оракл рекомендует использовать буфер величиной 3072 байта
@@ -48,23 +48,32 @@ fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_in
     buf.set_len(msg.to_bytes().len());
   };
 
-  (res, code, String::from_utf8(buf).expect("Invalid UTF-8 from OCIErrorGet"))
+  (res, Info { code: code as isize, message: String::from_utf8(buf).expect("Invalid UTF-8 from OCIErrorGet") })
 }
-fn decode_error<T: ErrorHandle>(handle: Option<*mut T>, result: c_int) -> DbError {
+fn decode_error_full<T: ErrorHandle>(handle: *mut T) -> Vec<Info> {
+  let mut vec = Vec::new();
+
+  for i in 1.. {
+    let (res, info) = decode_error_piece(handle, i);
+    if res == 100 {// 100 == NoData
+      break;
+    }
+    vec.push(info)
+  }
+  return vec;
+}
+fn decode_error<T: ErrorHandle>(handle: *mut T, result: c_int) -> DbError {
   match result {
     // Относительный успех
     0 => unreachable!(),// Сюда не должны попадать
-    1 => DbError::Info,//TODO: получить диагностическую информацию
+    1 => DbError::Info(decode_error_full(handle)),
     99 => DbError::NeedData,
     100 => DbError::NoData,
 
     // Ошибки
     -1 => {
-      let (_, code, msg) = match handle {
-        None => (0, 0, String::new()),
-        Some(h) => decode_error_piece(h, 1),
-      };
-      DbError::Fault { code: code as isize, message: msg }
+      let (_, info) = decode_error_piece(handle, 1);
+      DbError::Fault(info)
     },
     -2 => DbError::InvalidHandle,
     -3123 => DbError::StillExecuting,
@@ -98,7 +107,7 @@ impl<T: HandleType> Handle<T> {
   pub fn from_ptr<E: ErrorHandle>(res: c_int, native: *mut T, err: *mut E) -> DbResult<Handle<T>> {
     match res {
       0 => Ok(Handle { native: native }),
-      e => Err(decode_error(Some(err), e)),
+      e => Err(decode_error(err, e)),
     }
   }
   #[inline]
@@ -135,7 +144,7 @@ impl<T: HandleType> AttrHolder<T> for Handle<T> {
 impl Handle<OCIError> {
   /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
   pub fn decode(&self, result: c_int) -> DbError {
-    decode_error(Some(self.native), result)
+    decode_error(self.native, result)
   }
   pub fn check(&self, result: c_int) -> DbResult<()> {
     match result {
