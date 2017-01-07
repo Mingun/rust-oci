@@ -10,6 +10,7 @@ use error::Error;
 pub use self::num::OCINumber;
 
 mod num;
+mod bin;
 #[cfg(feature = "with-chrono")]
 mod chrono;
 
@@ -51,9 +52,9 @@ pub enum Type {
   BFLOAT = 21,
   /// NAtive binary double
   BDOUBLE = 22,
-  /// binary data(DTYBIN)
+  /// binary data(DTYBIN). У колонок с типом `raw`.
   BIN  = 23,
-  /// long binary
+  /// long binary. У колонок с типом `long raw`.
   LBI  = 24,
   /// unsigned integer
   UIN  = 68,
