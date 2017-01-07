@@ -56,7 +56,7 @@ impl FromDB for OCINumber {
     match ty {
       Type::VNU => {
         if raw.len() > 22 {
-          return Err(Error::Conversion(ty));
+          return Err(Error::Overflow { extracted: raw.len(), capacity: 22 });
         }
         let mut r = OCINumber::default();
         r.0[0..raw.len()].clone_from_slice(raw);

@@ -72,6 +72,13 @@ pub enum Error {
   /// [get]: ../stmt/struct.Row.html#method.get
   /// [row]: ../stmt/struct.Row.html
   InvalidColumn,
+  /// Ошибка невозможности записать все данные, извлеченные из базы, в предоставленный буфер.
+  Overflow {
+    /// Количество байт, прочитанное из базы, это число больше поля `capacity`.
+    extracted: usize,
+    /// Вместимость буфера, это число меньше поля `extracted`.
+    capacity: usize,
+  },
 }
 impl fmt::Display for Error {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -83,7 +90,8 @@ impl error::Error for Error {
     match *self {
       Error::Db(ref err) => err.description(),
       Error::Conversion(_) => "Can't convert value from/to Rust to DB type",
-      Error::InvalidColumn => "Nonexisting column",
+      Error::InvalidColumn => "Non-existing column",
+      Error::Overflow { .. } => "Not enough buffer size for store database result",
     }
   }
   fn cause(&self) -> Option<&error::Error> {
