@@ -69,6 +69,20 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
   fn new(conn: &'conn Connection) -> DbResult<Self> {
     Ok(LobImpl { conn: conn, locator: try!(conn.server.new_descriptor()) })
   }
+  fn len(&self) -> DbResult<u64> {
+    let mut len = 0;
+    let res = unsafe {
+      OCILobGetLength2(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native() as *const c_void as *mut c_void,
+        &mut len
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(len)
+  }
   fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
     // Количество того, сколько читать и сколько было реально прочитано
     let mut readed = buf.len() as u64;
@@ -278,6 +292,37 @@ extern "C" {
                       src_locp: *const c_void/*OCILobLocator*/,
                       dst_locpp: *mut *mut c_void/*OCILobLocator*/) -> c_int;
 
+  /// Gets the length of a LOB. This function must be used for LOBs of size greater than 4 GB. You can also use this
+  /// function for LOBs smaller than 4 GB.
+  ///
+  /// Gets the length of a LOB. If the LOB is NULL, the length is undefined. The length of a `BFILE` includes the EOF,
+  /// if it exists. The length of an empty internal LOB is zero.
+  ///
+  /// Regardless of whether the client-side character set is varying-width, the output length is in characters for
+  /// `CLOB`s and `NCLOB`s, and in bytes for `BLOB`s and `BFILE`s.
+  ///
+  /// Note:
+  ///
+  /// > Any zero-byte or space fillers in the LOB written by previous calls to `OCILobErase2()` or `OCILobWrite2()` are also
+  /// > included in the length count.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN):
+  ///   A LOB locator that uniquely references the LOB. For internal LOBs, this locator must have been a locator
+  ///   that was obtained from the server specified by `svchp`. For BFILEs, the locator can be set by `OCILobFileSetName()`,
+  ///   by a `SELECT` statement, or by `OCIObjectPin()`.
+  /// - lenp (OUT):
+  ///   On output, it is the length of the LOB if the LOB is not NULL. For character LOBs, it is the number of characters;
+  ///   for binary LOBs and `BFILE`s, it is the number of bytes in the LOB.
+  fn OCILobGetLength2(svchp: *mut OCISvcCtx,
+                      errhp: *mut OCIError,
+                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                      locp: *mut c_void/*OCILobLocator*/,
+                      lenp: *mut u64) -> c_int;
   /// Reads a portion of a LOB or `BFILE`, as specified by the call, into a buffer. This function must be used
   /// for LOBs of size greater than 4 GB. You can also use this function for LOBs smaller than 4 GB.
   ///
