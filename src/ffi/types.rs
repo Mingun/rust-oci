@@ -21,7 +21,7 @@ pub type OCICallbackLobArrayWrite = extern "C" fn(ctxp: *mut c_void,
                                                   changed_lenp: *mut c_ulonglong) -> c_int;
 
 /// Specifies the type of credentials to use for establishing the user session
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum CredentialMode {
   /// Authenticate using a database user name and password pair as credentials.
@@ -32,7 +32,7 @@ pub enum CredentialMode {
   //Proxy = 1 << 3,
 }
 /// Виды хендлов, которые можно выделять функцией `OCIHandleAlloc`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Handle {
   /// OCI environment handle
@@ -110,7 +110,7 @@ pub enum Handle {
 }
 
 /// Виды дескрипторов, которые можно создать функцией `OCIDescriptorAlloc`
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Descriptor {
   /// Specifies generation of a LOB value type locator (for a `BLOB` or `CLOB`) of C type `OCILobLocator`.
@@ -169,7 +169,7 @@ pub enum Descriptor {
   //ShardingKey,// с версии 12.2c, найти API данной версии на сайте оракла не удалось
 }
 /// Виды атрибутов, которые можно назначать хендлам
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Attr {
   Server = 6,
@@ -225,7 +225,7 @@ pub enum Attr {
   ColProps         = 104,
 }
 /// Режим кеширования подготавливаемых запросов к базе данных
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum CachingMode {
   /// Caching is not enabled. This is the only valid setting. If the statement is not found in the cache, this mode
@@ -255,7 +255,7 @@ impl Default for CachingMode {
   fn default() -> Self { CachingMode::Default }
 }
 /// Коды ошибок, которые могут вернуть функции оракла (не путать с кодами ошибок оракла `ORA-xxxxx`)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ErrorCode {
   /// Все в порядке, проблем нет
@@ -277,7 +277,7 @@ pub enum ErrorCode {
   /// This code is returned only from a callback function. It indicates that the callback function is done with the user row callback.
   RowCallbackDone = -24201,
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ExecuteMode {
   /// Calling `OCIStmtExecute()` in this mode executes the statement. It also implicitly returns describe information
@@ -317,7 +317,7 @@ impl Default for ExecuteMode {
   fn default() -> Self { ExecuteMode::Default }
 }
 /// Определяет способ получения данных из курсора
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum FetchMode {
   /// Has the same effect as `Next`.
@@ -343,7 +343,7 @@ impl Default for FetchMode {
   fn default() -> Self { FetchMode::Default }
 }
 /// Определяет способ связывания данных для выражения.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum DefineMode {
   /// This is the default mode.
@@ -364,7 +364,7 @@ impl Default for DefineMode {
   fn default() -> Self { DefineMode::Default }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum NumberFlag {
   Unsigned = 0,

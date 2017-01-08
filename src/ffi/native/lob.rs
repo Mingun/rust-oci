@@ -21,7 +21,7 @@ descriptor!(OCILobLocator, Lob);
 descriptor!(OCILobLocator, File);
 
 /// Смысловой номер куска, читаемого из/записываемого в LOB.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum LobPiece {
   /// Читаемый/записываемый буфер является единственной частью.
   One   = 0,
@@ -33,7 +33,7 @@ pub enum LobPiece {
   /// Читаемый/записываемый буфер является последней частью набора буферов для чтения/записи.
   Last  = 3,
 }
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Charset {
   /// For `CHAR`, `VARCHAR2`, `CLOB` w/o a specified set.
   Implicit = 1,
@@ -46,7 +46,7 @@ pub enum Charset {
   /// For typecheck of `NULL` and `empty_clob()` lits.
   LitNull  = 5,
 }
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum LobOpenMode {
   /// Readonly mode open for ILOB types.
   ReadOnly      = 1,

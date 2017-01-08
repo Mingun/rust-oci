@@ -3,7 +3,7 @@
 use std::u32;
 
 /// Возможные типы данных базы данных
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 #[allow(deprecated)]// Позволяем deprecated внутри перечисления из-за https://github.com/rust-lang/rust/issues/38832
@@ -121,7 +121,7 @@ pub enum Type {
 }
 
 /// Режим, в котором создавать окружение при вызове `OCIEnvNlsCreate()`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum CreateMode {
   /// The default value, which is non-UTF-16 encoding.
@@ -170,7 +170,7 @@ impl Default for CreateMode {
   fn default() -> Self { CreateMode::Default }
 }
 /// Режим, в котором подключаться к cерверу базы данных при вызове `OCIServerAttach()`.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum AttachMode {
   /// For encoding, this value tells the server handle to use the setting in the environment handle.
@@ -182,7 +182,7 @@ impl Default for AttachMode {
   fn default() -> Self { AttachMode::Default }
 }
 /// Specifies the various modes of operation
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum AuthMode {
   /// In this mode, the user session context returned can only ever be set with the server context
@@ -221,7 +221,7 @@ impl Default for AuthMode {
 /// диалект, он является диалектом по умолчанию при выполнении [`prepare`][1] без параметров.
 ///
 /// [1]: ../struct.Connection.html#method.prepare
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Syntax {
   /// Синтаксис зависит от версии сервера базы данных.
