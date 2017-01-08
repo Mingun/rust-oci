@@ -47,6 +47,7 @@ extern crate num_traits;
 
 pub mod convert;
 pub mod error;
+pub mod lob;
 pub mod params;
 pub mod stmt;
 pub mod types;

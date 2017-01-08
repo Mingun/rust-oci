@@ -3,16 +3,13 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/lob-functions.htm#LNOCI162
 
-use std::io;
 use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ulonglong, c_ushort};
 use std::ptr;
 
 use {Connection, DbResult};
 
-use ffi::Descriptor;// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
-use ffi::attr::AttrHolder;
 use ffi::types;
 use ffi::native::{OCIEnv, OCIError, OCISvcCtx};// FFI типы
 
@@ -62,21 +59,25 @@ pub enum LobOpenMode {
   FullRead      = 6,
 }
 #[derive(Debug)]
-pub struct LobImpl<'conn, L: 'conn + OCILobLocator> {
+pub struct LobImpl<'conn, L: OCILobLocator> {
   conn: &'conn Connection<'conn>,
-  locator: Descriptor<'conn, L>,
+  locator: *mut L,
 }
-impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
-  pub fn new(conn: &'conn Connection) -> DbResult<Self> {
-    Ok(LobImpl { conn: conn, locator: try!(conn.server.new_descriptor()) })
+impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
+  pub fn from(conn: &'conn Connection, locator: *mut L) -> Self {
+    LobImpl { conn: conn, locator: locator }
   }
+  /// Получает количество данных в данном объекте. Для бинарных объектов (`BLOB`-ов) это количество байт,
+  /// для символьных (`CLOB`-ов) -- количество символов.
+  ///
+  /// Данная функция должна вызываться только для не `NULL` LOB-ов, иначе результат не определен.
   pub fn len(&self) -> DbResult<u64> {
     let mut len = 0;
     let res = unsafe {
       OCILobGetLength2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native() as *const c_void as *mut c_void,
+        self.locator as *mut c_void,
         &mut len
       )
     };
@@ -91,7 +92,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobGetStorageLimit(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native() as *const c_void as *mut c_void,
+        self.locator as *mut c_void,
         &mut capacity
       )
     };
@@ -105,7 +106,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobTrim2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void,
+        self.locator as *mut c_void,
         len
       )
     };
@@ -118,7 +119,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobRead2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void,
+        self.locator as *mut c_void,
         // Всегда задаем чтение в байтах, даже для [N]CLOB-ов
         &mut readed, ptr::null_mut(),
         // У оракла нумерация с 1, у нас традиционная, с 0
@@ -143,7 +144,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobWrite2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void,
+        self.locator as *mut c_void,
         // Всегда задаем запись в байтах, даже для [N]CLOB-ов
         &mut writed, ptr::null_mut(),
         // У оракла нумерация с 1, у нас традиционная, с 0
@@ -171,7 +172,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobErase2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void,
+        self.locator as *mut c_void,
         count, offset + 1// У оракла нумерация с 1, у нас традиционная, с 0
       )
     };
@@ -182,7 +183,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobOpen(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void,
+        self.locator as *mut c_void,
         mode as u8
       )
     };
@@ -193,53 +194,10 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
       OCILobClose(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
-        self.locator.native_mut() as *mut c_void
+        self.locator as *mut c_void
       )
     };
     self.conn.error().check(res)
-  }
-
-  pub fn new_reader(&'conn mut self, charset: u16) -> DbResult<LobReader<'conn, L>> {
-    try!(self.open(LobOpenMode::ReadOnly));
-    Ok(LobReader { lob: self, charset: charset })
-  }
-  pub fn new_writer(&'conn mut self, charset: u16) -> DbResult<LobWriter<'conn, L>> {
-    try!(self.open(LobOpenMode::WriteOnly));
-    Ok(LobWriter { lob: self, charset: charset })
-  }
-}
-#[derive(Debug)]
-pub struct LobReader<'lob, L: 'lob + OCILobLocator> {
-  lob: &'lob mut LobImpl<'lob, L>,
-  charset: u16,
-}
-impl<'lob, L: 'lob + OCILobLocator> io::Read for LobReader<'lob, L> {
-  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    self.lob.read(0, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-  }
-}
-impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
-  fn drop(&mut self) {
-    self.lob.close().expect("Error when close LOB");
-  }
-}
-
-#[derive(Debug)]
-pub struct LobWriter<'lob, L: 'lob + OCILobLocator> {
-  lob: &'lob mut LobImpl<'lob, L>,
-  charset: u16,
-}
-impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
-  fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.lob.write(0, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-  }
-  fn flush(&mut self) -> io::Result<()> {
-    Ok(())
-  }
-}
-impl<'lob, L: 'lob + OCILobLocator> Drop for LobWriter<'lob, L> {
-  fn drop(&mut self) {
-    self.lob.close().expect("Error when close LOB");
   }
 }
 
