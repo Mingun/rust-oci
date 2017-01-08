@@ -83,6 +83,17 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
 
     Ok(len)
   }
+  fn trim(&mut self, len: u64) -> DbResult<()> {
+    let res = unsafe {
+      OCILobTrim2(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native_mut() as *mut c_void,
+        len
+      )
+    };
+    self.conn.error().check(res)
+  }
   fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
     // Количество того, сколько читать и сколько было реально прочитано
     let mut readed = buf.len() as u64;
@@ -323,6 +334,39 @@ extern "C" {
                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                       locp: *mut c_void/*OCILobLocator*/,
                       lenp: *mut u64) -> c_int;
+  /// Truncates the LOB value to a shorter length. This function must be used for LOBs of size greater than 4 GB.
+  /// You can also use this function for LOBs smaller than 4 GB.
+  ///
+  /// This function trims the LOB data to a specified shorter length. The function returns an error if newlen is
+  /// greater than the current LOB length. This function is valid only for internal LOBs. `BFILE`s are not allowed.
+  ///
+  /// It is not mandatory that you wrap this LOB operation inside the open or close calls. If you did not open the
+  /// LOB before performing this operation, then the functional and domain indexes on the LOB column are updated
+  /// during this call. However, if you did open the LOB before performing this operation, then you must close it
+  /// before you commit your transaction. When an internal LOB is closed, it updates the functional and domain
+  /// indexes on the LOB column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes
+  /// are updated each time you write to the LOB. This can adversely affect performance. If you have functional or
+  /// domain indexes, Oracle recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  ///
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   An internal LOB locator that uniquely references the LOB. This locator must have been a locator that was
+  ///   obtained from the server specified by `svchp`.
+  /// - newlen (IN):
+  ///   The new length of the LOB value, which must be less than or equal to the current length. For character LOBs,
+  ///   it is the number of characters; for binary LOBs and `BFILE`s, it is the number of bytes in the LOB.
+  fn OCILobTrim2(svchp: *mut OCISvcCtx,
+                 errhp: *mut OCIError,
+                 // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                 locp: *mut c_void/*OCILobLocator*/,
+                 newlen: u64) -> c_int;
   /// Reads a portion of a LOB or `BFILE`, as specified by the call, into a buffer. This function must be used
   /// for LOBs of size greater than 4 GB. You can also use this function for LOBs smaller than 4 GB.
   ///
