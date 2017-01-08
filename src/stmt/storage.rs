@@ -150,7 +150,7 @@ impl<'d> DefineInfo<'d> {
   }
   /// Представляет содержимое данного хранилища в виде объекта указанного типа
   #[inline]
-  pub fn to<T: FromDB>(&self, ty: Type, conn: &Connection) -> Result<Option<T>> {
+  pub fn to<'c, T: FromDB<'c>>(&self, ty: Type, conn: &'c Connection) -> Result<Option<T>> {
     match self.as_slice() {
       Some(ref slice) => T::from_db(ty, slice, conn).map(|r| Some(r)),
       None => Ok(None),

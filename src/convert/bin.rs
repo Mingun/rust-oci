@@ -5,7 +5,7 @@ use convert::FromDB;
 use error::Error;
 use types::Type;
 
-impl FromDB for Vec<u8> {
+impl<'conn> FromDB<'conn> for Vec<u8> {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
       //Type::VBI |
@@ -22,7 +22,7 @@ impl FromDB for Vec<u8> {
 /// массива и массива, для которого реализуется типаж.
 macro_rules! array {
   ($size:tt) => (
-    impl FromDB for [u8; $size] {
+    impl<'conn> FromDB<'conn> for [u8; $size] {
       fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
         match ty {
           //Type::VBI |

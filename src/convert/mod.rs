@@ -15,7 +15,7 @@ mod bin;
 mod chrono;
 
 /// Преобразует тип базы данных в тип Rust, для которого реализован данный типаж.
-pub trait FromDB : Sized {
+pub trait FromDB<'conn> : 'conn + Sized {
   /// Преобразует данные, извлеченные из базы данных, в конкретный тип, если это преобразование
   /// возможно. Если преобразование невозможно, или в процессе преобразования возникает ошибка,
   /// возвращает `Err`.
@@ -27,10 +27,10 @@ pub trait FromDB : Sized {
   ///   Слепок данных для значения указанного типа, которое необходимо преобразовать в Rust-тип.
   /// - `conn`:
   ///   Соединение, в рамках которого было выполнено выражение, извлекшее представленные данные.
-  fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self>;
+  fn from_db(ty: Type, raw: &[u8], conn: &'conn Connection) -> Result<Self>;
 }
 
-impl FromDB for String {
+impl<'conn> FromDB<'conn> for String {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
       Type::CHR |
@@ -42,7 +42,7 @@ impl FromDB for String {
 
 use ffi::native::time::{get_day_second, IntervalDS};
 
-impl FromDB for Duration {
+impl<'conn> FromDB<'conn> for Duration {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::INTERVAL_DS => {

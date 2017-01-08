@@ -52,7 +52,7 @@ impl Default for OCINumber {
     OCINumber([0; 22])
   }
 }
-impl FromDB for OCINumber {
+impl<'conn> FromDB<'conn> for OCINumber {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
       Type::VNU => {
@@ -70,7 +70,7 @@ impl FromDB for OCINumber {
 
 macro_rules! simple_from {
   ($ty:ty, $($types:ident),+) => (
-    impl FromDB for $ty {
+    impl<'conn> FromDB<'conn> for $ty {
       fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
         match ty {
           $(Type::$types)|+ => Ok(unsafe { *(raw.as_ptr() as *const $ty) }),

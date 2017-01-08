@@ -463,10 +463,10 @@ mod tests {
     println!();
   }
   #[cfg(feature = "with-chrono")]
-  fn print_with_tz<Tz>(row: &Row, col: &Column)
+  fn print_with_tz<'conn, Tz>(row: &Row<'conn>, col: &Column)
     where Tz: chrono::TimeZone,
-          chrono::Date<Tz>: FromDB,
-          chrono::DateTime<Tz>: FromDB
+          chrono::Date<Tz>: FromDB<'conn>,
+          chrono::DateTime<Tz>: FromDB<'conn>
   {
     let time0: Result<Option<chrono::Date<Tz>>> = row.get(col.pos);
     let time2: Result<Option<chrono::DateTime<Tz>>> = row.get(col.pos);

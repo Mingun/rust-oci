@@ -37,7 +37,7 @@ fn to_tz<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<FixedOffset
   Ok(FixedOffset::east(offset.num_seconds() as i32))
 }
 
-impl FromDB for NaiveDate {
+impl<'conn> FromDB<'conn> for NaiveDate {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::TIMESTAMP => {// Время в некоем неизвестном часовом поясе
@@ -61,7 +61,7 @@ impl FromDB for NaiveDate {
     }
   }
 }
-impl FromDB for NaiveTime {
+impl<'conn> FromDB<'conn> for NaiveTime {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::TIMESTAMP => {// Время в некоем неизвестном часовом поясе
@@ -85,7 +85,7 @@ impl FromDB for NaiveTime {
     }
   }
 }
-impl FromDB for NaiveDateTime {
+impl<'conn> FromDB<'conn> for NaiveDateTime {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     let date = try!(NaiveDate::from_db(ty, raw, conn));
     let time = try!(NaiveTime::from_db(ty, raw, conn));
@@ -107,7 +107,7 @@ fn to_datetime<T: OCIDateTime>(conn: &Connection, timestamp: &T) -> Result<DateT
 
   Ok(tz.ymd(yyyy as i32, MM as u32, dd as u32).and_hms_nano(hh as u32, mm as u32, ss as u32, ns as u32))
 }
-impl FromDB for Date<FixedOffset> {
+impl<'conn> FromDB<'conn> for Date<FixedOffset> {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
@@ -122,7 +122,7 @@ impl FromDB for Date<FixedOffset> {
     }
   }
 }
-impl FromDB for DateTime<FixedOffset> {
+impl<'conn> FromDB<'conn> for DateTime<FixedOffset> {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::TIMESTAMP_TZ => {// Время в некоем часовом поясе и сам этот пояс
@@ -138,14 +138,14 @@ impl FromDB for DateTime<FixedOffset> {
   }
 }
 //-------------------------------------------------------------------------------------------------
-impl FromDB for Date<UTC> {
+impl<'conn> FromDB<'conn> for Date<UTC> {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     let time = try!(Date::<FixedOffset>::from_db(ty, raw, conn));
 
     Ok(time.with_timezone(&UTC))
   }
 }
-impl FromDB for DateTime<UTC> {
+impl<'conn> FromDB<'conn> for DateTime<UTC> {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     let time = try!(DateTime::<FixedOffset>::from_db(ty, raw, conn));
 
@@ -153,7 +153,7 @@ impl FromDB for DateTime<UTC> {
   }
 }
 //-------------------------------------------------------------------------------------------------
-impl FromDB for Duration {
+impl<'conn> FromDB<'conn> for Duration {
   fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
     match ty {
       Type::INTERVAL_DS => {
