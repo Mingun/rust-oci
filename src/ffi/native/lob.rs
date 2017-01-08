@@ -84,6 +84,22 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
 
     Ok(len)
   }
+  /// Получает максимально возможный размер для данного большого объекта в байтах.
+  pub fn capacity(&self) -> DbResult<u64> {
+    let mut capacity = 0;
+    let res = unsafe {
+      OCILobGetStorageLimit(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native() as *const c_void as *mut c_void,
+        &mut capacity
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(capacity)
+  }
+  /// Укорачивает LOB до указанной длины.
   pub fn trim(&mut self, len: u64) -> DbResult<()> {
     let res = unsafe {
       OCILobTrim2(
@@ -351,6 +367,26 @@ extern "C" {
                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                       locp: *mut c_void/*OCILobLocator*/,
                       lenp: *mut u64) -> c_int;
+  /// Gets the maximum length of an internal LOB (BLOB, CLOB, or NCLOB) in bytes.
+  ///
+  /// Because block size ranges from 2 KB to 32 KB, the maximum LOB size ranges from 8 terabytes to 128 terabytes (TB) for LOBs.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN):
+  ///   A LOB locator that uniquely references the LOB. The locator must have been one that was obtained from the server
+  ///   specified by `svchp`.
+  /// - limitp (OUT):
+  ///   The maximum length of the LOB (in bytes) that can be stored in the database.
+  fn OCILobGetStorageLimit(svchp: *mut OCISvcCtx,
+                           errhp: *mut OCIError,
+                           // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                           locp: *mut c_void/*OCILobLocator*/,
+                           limitp: *mut u64) -> c_int;
+
   /// Truncates the LOB value to a shorter length. This function must be used for LOBs of size greater than 4 GB.
   /// You can also use this function for LOBs smaller than 4 GB.
   ///
