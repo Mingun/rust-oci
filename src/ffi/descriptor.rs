@@ -92,6 +92,18 @@ impl<'d> GenericDescriptor<'d> {
       )
     }
   }
+  /// Получает типизированный raw-указатель на данные в дескрипторе, если тип запрошенного указателя
+  /// совпадает с реальным типом, хранящемся в дескрипторе. В противном случае возвращает `None`.
+  #[inline]
+  pub fn native<T: DescriptorType>(&self) -> Option<*const T> {
+    if T::ID == self.id { Some(self.native as *const T) } else { None }
+  }
+  /// Получает типизированный raw-указатель на данные в дескрипторе, если тип запрошенного указателя
+  /// совпадает с реальным типом, хранящемся в дескрипторе. В противном случае возвращает `None`.
+  #[inline]
+  pub fn native_mut<T: DescriptorType>(&self) -> Option<*mut T> {
+    if T::ID == self.id { Some(self.native as *mut T) } else { None }
+  }
 }
 impl<'d, T: DescriptorType> From<Descriptor<'d, T>> for GenericDescriptor<'d> {
   fn from(d: Descriptor<'d, T>) -> Self {
