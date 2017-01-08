@@ -140,39 +140,37 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     self.conn.error().check(res)
   }
 
-  pub fn new_reader<'a>(&'a mut self, charset: u16) -> DbResult<LobReader<'a, L>> {
+  pub fn new_reader(&'conn mut self, charset: u16) -> DbResult<LobReader<'conn, L>> {
     try!(self.open(LobOpenMode::ReadOnly));
     Ok(LobReader { lob: self, charset: charset })
   }
-  pub fn new_writer<'a>(&'a mut self, charset: u16) -> DbResult<LobWriter<'a, L>> {
+  pub fn new_writer(&'conn mut self, charset: u16) -> DbResult<LobWriter<'conn, L>> {
     try!(self.open(LobOpenMode::WriteOnly));
     Ok(LobWriter { lob: self, charset: charset })
   }
 }
 struct LobReader<'lob, L: 'lob + OCILobLocator> {
-  lob: &'lob LobImpl<'lob, L>,
+  lob: &'lob mut LobImpl<'lob, L>,
   charset: u16,
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Read for LobReader<'lob, L> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    //self.lob.read(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-    unimplemented!()
+    self.lob.read(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
   fn drop(&mut self) {
-    //self.lob.close().expect("Error when close LOB");
+    self.lob.close().expect("Error when close LOB");
   }
 }
 
 struct LobWriter<'lob, L: 'lob + OCILobLocator> {
-  lob: &'lob LobImpl<'lob, L>,
+  lob: &'lob mut LobImpl<'lob, L>,
   charset: u16,
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    //self.lob.write(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-    unimplemented!()
+    self.lob.write(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
@@ -180,7 +178,7 @@ impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
 }
 impl<'lob, L: 'lob + OCILobLocator> Drop for LobWriter<'lob, L> {
   fn drop(&mut self) {
-    //self.lob.close().expect("Error when close LOB");
+    self.lob.close().expect("Error when close LOB");
   }
 }
 
