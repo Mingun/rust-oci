@@ -6,8 +6,9 @@ use num_traits::{Signed, Unsigned};
 use num_integer::Integer;
 
 use {Connection, DbResult, Result};
+use convert::FromDB;
 use error::Error;
-use types::{FromDB, Type};
+use types::Type;
 
 use ffi::Handle;// Основные типобезопасные примитивы
 

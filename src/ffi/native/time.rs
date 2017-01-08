@@ -6,7 +6,7 @@
 use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
 
 use DbResult;
-use types::OCINumber;
+use convert::OCINumber;
 
 use ffi::Handle;// Основные типобезопасные примитивы
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI

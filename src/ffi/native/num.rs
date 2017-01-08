@@ -5,7 +5,7 @@
 
 use std::os::raw::{c_int, c_void, c_uchar, c_uint};
 
-use types::OCINumber;
+use convert::OCINumber;
 
 use ffi::native::OCIError;// FFI типы
 

@@ -6,8 +6,9 @@ use self::chrono::{Date, DateTime, TimeZone, FixedOffset, UTC};// с учето�
 use self::chrono::Duration;// продолжительности времени
 
 use {Connection, Result};
+use convert::FromDB;
 use error::Error;
-use types::{FromDB, Type};
+use types::Type;
 
 use ffi::native::time::{get_date, get_time, get_time_offset, OCIDateTime, Timestamp, TimestampWithTZ, TimestampWithLTZ};
 use ffi::native::time::{get_day_second, IntervalDS};

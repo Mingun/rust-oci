@@ -45,6 +45,7 @@
 extern crate num_integer;
 extern crate num_traits;
 
+pub mod convert;
 pub mod error;
 pub mod params;
 pub mod stmt;
@@ -363,6 +364,7 @@ mod tests {
 
   use std::env;
   use super::*;
+  use convert::*;
   use params::*;
   use stmt::*;
   use types::*;

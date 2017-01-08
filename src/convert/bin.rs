@@ -1,9 +1,9 @@
 //! Реализация конвертации в типы базы данных и обратно бинарных данных
 
 use {Connection, Result};
+use convert::FromDB;
 use error::Error;
-
-use types::{FromDB, Type};
+use types::Type;
 
 impl FromDB for Vec<u8> {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {

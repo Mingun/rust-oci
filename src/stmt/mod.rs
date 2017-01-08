@@ -7,9 +7,10 @@ use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
 use std::ptr;
 
 use {Connection, DbResult, Result};
+use convert::FromDB;
 use error::{self, Error};
 use error::DbError::{Info, NoData, Fault};
-use types::{FromDB, Type, Syntax};
+use types::{Type, Syntax};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
 use ffi::ParamHandle;// Типажи для безопасного моста к FFI
