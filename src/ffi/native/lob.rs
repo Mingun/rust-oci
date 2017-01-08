@@ -144,6 +144,20 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(writed as usize)
   }
+  /// Заполняет LOB, начиная с указанного индекса, указанным количеством нулей (для бинарных данных) или
+  /// пробелов (для символьных данных). После завершения работы в `count` будет записано реальное количество
+  /// очищенных символов/байт.
+  pub fn erase(&mut self, offset: u64, count: &mut u64) -> DbResult<()> {
+    let res = unsafe {
+      OCILobErase2(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator.native_mut() as *mut c_void,
+        count, offset
+      )
+    };
+    self.conn.error().check(res)
+  }
   pub fn open(&mut self, mode: LobOpenMode) -> DbResult<()> {
     let res = unsafe {
       OCILobOpen(
@@ -490,6 +504,43 @@ extern "C" {
                   cbfp: Option<OCICallbackLobWrite2>,
                   csid: u16,
                   csfrm: u8) -> c_int;
+  /// Erases a specified portion of the internal LOB data starting at a specified offset. This function must be used for LOBs
+  /// of size greater than 4 GB. You can also use this function for LOBs smaller than 4 GB.
+  ///
+  /// The actual number of characters or bytes erased is returned. For `BLOB`s, erasing means that zero-byte fillers overwrite
+  /// the existing LOB value. For CLOBs, erasing means that spaces overwrite the existing LOB value.
+  ///
+  /// This function is valid only for internal LOBs; BFILEs are not allowed.
+  ///
+  /// It is not mandatory that you wrap this LOB operation inside the open or close calls. If you did not open the LOB before
+  /// performing this operation, then the functional and domain indexes on the LOB column are updated during this call. However,
+  /// if you did open the LOB before performing this operation, then you must close it before you commit your transaction. When
+  /// an internal LOB is closed, it updates the functional and domain indexes on the LOB column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes are updated
+  /// each time you write to the LOB. This can adversely affect performance. If you have functional or domain indexes, Oracle
+  /// recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   An internal LOB locator that uniquely references the LOB. This locator must have been a locator that was obtained
+  ///   from the server specified by `svchp`.
+  /// - amount (IN/OUT):
+  ///   The number of characters for CLOBs or NCLOBs, or bytes for BLOBs, to erase. On IN, the value signifies the number
+  ///   of characters or bytes to erase. On OUT, the value identifies the actual number of characters or bytes erased.
+  /// - offset (IN):
+  ///   Absolute offset in characters for CLOBs or NCLOBs, or bytes for BLOBs, from the beginning of the LOB value from which
+  ///   to start erasing data. Starts at `1`.
+  fn OCILobErase2(svchp: *mut OCISvcCtx,
+                  errhp: *mut OCIError,
+                  // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                  locp: *mut c_void/*OCILobLocator*/,
+                  amount: *mut u64,
+                  offset: u64) -> c_int;
 
   /// Opens a LOB, internal or external, in the indicated mode.
   ///
