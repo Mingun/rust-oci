@@ -22,7 +22,7 @@ descriptor!(OCILobLocator, File);
 
 /// Смысловой номер куска, читаемого из/записываемого в LOB.
 #[derive(Debug, Copy, Clone)]
-enum LobPiece {
+pub enum LobPiece {
   /// Читаемый/записываемый буфер является единственной частью.
   One   = 0,
   /// Читаемый/записываемый буфер является первой частью набора буферов для чтения/записи.
@@ -34,7 +34,7 @@ enum LobPiece {
   Last  = 3,
 }
 #[derive(Debug, Copy, Clone)]
-enum Charset {
+pub enum Charset {
   /// For `CHAR`, `VARCHAR2`, `CLOB` w/o a specified set.
   Implicit = 1,
   /// For `NCHAR`, `NCHAR VARYING`, `NCLOB`.
@@ -47,7 +47,7 @@ enum Charset {
   LitNull  = 5,
 }
 #[derive(Debug, Copy, Clone)]
-enum LobOpenMode {
+pub enum LobOpenMode {
   /// Readonly mode open for ILOB types.
   ReadOnly      = 1,
   /// Read write mode open for ILOBs.
@@ -61,15 +61,16 @@ enum LobOpenMode {
   /// Doing a Full Read of ILOB.
   FullRead      = 6,
 }
-struct LobImpl<'conn, L: 'conn + OCILobLocator> {
+#[derive(Debug)]
+pub struct LobImpl<'conn, L: 'conn + OCILobLocator> {
   conn: &'conn Connection<'conn>,
   locator: Descriptor<'conn, L>,
 }
 impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
-  fn new(conn: &'conn Connection) -> DbResult<Self> {
+  pub fn new(conn: &'conn Connection) -> DbResult<Self> {
     Ok(LobImpl { conn: conn, locator: try!(conn.server.new_descriptor()) })
   }
-  fn len(&self) -> DbResult<u64> {
+  pub fn len(&self) -> DbResult<u64> {
     let mut len = 0;
     let res = unsafe {
       OCILobGetLength2(
@@ -83,7 +84,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
 
     Ok(len)
   }
-  fn trim(&mut self, len: u64) -> DbResult<()> {
+  pub fn trim(&mut self, len: u64) -> DbResult<()> {
     let res = unsafe {
       OCILobTrim2(
         self.conn.context.native_mut(),
@@ -94,7 +95,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
+  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
     // Количество того, сколько читать и сколько было реально прочитано
     let mut readed = buf.len() as u64;
     let res = unsafe {
@@ -118,7 +119,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(readed as usize)
   }
-  fn write(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
+  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -143,7 +144,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(writed as usize)
   }
-  fn open(&mut self, mode: LobOpenMode) -> DbResult<()> {
+  pub fn open(&mut self, mode: LobOpenMode) -> DbResult<()> {
     let res = unsafe {
       OCILobOpen(
         self.conn.context.native_mut(),
@@ -154,7 +155,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  fn close(&mut self) -> DbResult<()> {
+  pub fn close(&mut self) -> DbResult<()> {
     let res = unsafe {
       OCILobClose(
         self.conn.context.native_mut(),
@@ -174,7 +175,8 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
     Ok(LobWriter { lob: self, charset: charset })
   }
 }
-struct LobReader<'lob, L: 'lob + OCILobLocator> {
+#[derive(Debug)]
+pub struct LobReader<'lob, L: 'lob + OCILobLocator> {
   lob: &'lob mut LobImpl<'lob, L>,
   charset: u16,
 }
@@ -189,7 +191,8 @@ impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
   }
 }
 
-struct LobWriter<'lob, L: 'lob + OCILobLocator> {
+#[derive(Debug)]
+pub struct LobWriter<'lob, L: 'lob + OCILobLocator> {
   lob: &'lob mut LobImpl<'lob, L>,
   charset: u16,
 }
