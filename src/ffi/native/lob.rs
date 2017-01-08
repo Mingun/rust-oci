@@ -155,7 +155,7 @@ struct LobReader<'lob, L: 'lob + OCILobLocator> {
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Read for LobReader<'lob, L> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    self.lob.read(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.lob.read(1, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
@@ -170,7 +170,7 @@ struct LobWriter<'lob, L: 'lob + OCILobLocator> {
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.lob.write(1, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.lob.write(1, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
