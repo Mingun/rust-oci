@@ -121,7 +121,8 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
         self.locator.native_mut() as *mut c_void,
         // Всегда задаем чтение в байтах, даже для [N]CLOB-ов
         &mut readed, ptr::null_mut(),
-        offset,
+        // У оракла нумерация с 1, у нас традиционная, с 0
+        offset + 1,
         buf.as_mut_ptr() as *mut c_void, buf.len() as u64,
         piece as u8,
         // Функцию обратного вызова не используем
@@ -145,7 +146,9 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
         self.locator.native_mut() as *mut c_void,
         // Всегда задаем запись в байтах, даже для [N]CLOB-ов
         &mut writed, ptr::null_mut(),
-        offset,// имеет значение только при первом вызове, при последующих игнорируется
+        // У оракла нумерация с 1, у нас традиционная, с 0
+        // Имеет значение только при первом вызове, при последующих игнорируется
+        offset + 1,
         buf.as_ptr() as *mut c_void, buf.len() as u64,
         piece as u8,
         // Функцию обратного вызова не используем
@@ -169,7 +172,7 @@ impl<'conn, L: 'conn + OCILobLocator> LobImpl<'conn, L> {
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
         self.locator.native_mut() as *mut c_void,
-        count, offset
+        count, offset + 1// У оракла нумерация с 1, у нас традиционная, с 0
       )
     };
     self.conn.error().check(res)
@@ -212,7 +215,7 @@ pub struct LobReader<'lob, L: 'lob + OCILobLocator> {
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Read for LobReader<'lob, L> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    self.lob.read(1, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.lob.read(0, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'lob, L: 'lob + OCILobLocator> Drop for LobReader<'lob, L> {
@@ -228,7 +231,7 @@ pub struct LobWriter<'lob, L: 'lob + OCILobLocator> {
 }
 impl<'lob, L: 'lob + OCILobLocator> io::Write for LobWriter<'lob, L> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.lob.write(1, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.lob.write(0, LobPiece::One, self.charset, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
