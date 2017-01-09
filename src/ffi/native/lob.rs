@@ -178,6 +178,19 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
+  /// Добавляет в конец содержимого данного LOB-а содержимое другого LOB-а. Оба должны
+  /// иметь один и тот же тип и быть внутренними LOB-оми, а не файловыми LOB-ами.
+  pub fn add(&mut self, src: &LobImpl<L>) -> DbResult<()> {
+    let res = unsafe {
+      OCILobAppend(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        src.locator as *mut c_void,
+      )
+    };
+    self.conn.error().check(res)
+  }
   pub fn open(&mut self, mode: LobOpenMode) -> DbResult<()> {
     let res = unsafe {
       OCILobOpen(
