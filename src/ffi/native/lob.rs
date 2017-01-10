@@ -160,8 +160,33 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     try!(self.conn.error().check(res));
 
-    // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
-    // не превышает usize.
+    // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
+    // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+    Ok(writed as usize)
+  }
+  /// Дописывает в конец данного LOB-а данные из указанного буфера.
+  pub fn append(&mut self, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
+    // Количество того, сколько писать и сколько было реально записано
+    let mut writed = buf.len() as u64;
+    let res = unsafe {
+      OCILobWriteAppend2(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        // Всегда задаем запись в байтах, даже для [N]CLOB-ов
+        &mut writed, ptr::null_mut(),
+        buf.as_ptr() as *mut c_void, buf.len() as u64,
+        piece as u8,
+        // Функцию обратного вызова не используем
+        ptr::null_mut(), None,
+        // Данные параметры игнорируются для BLOB-ов.
+        charset, Charset::Implicit as u8
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
+    // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
     Ok(writed as usize)
   }
   /// Заполняет LOB, начиная с указанного индекса, указанным количеством нулей (для бинарных данных) или
@@ -361,39 +386,6 @@ extern "C" {
                            locp: *mut c_void/*OCILobLocator*/,
                            limitp: *mut u64) -> c_int;
 
-  /// Truncates the LOB value to a shorter length. This function must be used for LOBs of size greater than 4 GB.
-  /// You can also use this function for LOBs smaller than 4 GB.
-  ///
-  /// This function trims the LOB data to a specified shorter length. The function returns an error if newlen is
-  /// greater than the current LOB length. This function is valid only for internal LOBs. `BFILE`s are not allowed.
-  ///
-  /// It is not mandatory that you wrap this LOB operation inside the open or close calls. If you did not open the
-  /// LOB before performing this operation, then the functional and domain indexes on the LOB column are updated
-  /// during this call. However, if you did open the LOB before performing this operation, then you must close it
-  /// before you commit your transaction. When an internal LOB is closed, it updates the functional and domain
-  /// indexes on the LOB column.
-  ///
-  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes
-  /// are updated each time you write to the LOB. This can adversely affect performance. If you have functional or
-  /// domain indexes, Oracle recommends that you enclose write operations to the LOB within the open or close statements.
-  ///
-  /// # Parameters
-  ///
-  /// - svchp (IN):
-  ///   The service context handle.
-  /// - errhp (IN/OUT):
-  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
-  /// - locp (IN/OUT):
-  ///   An internal LOB locator that uniquely references the LOB. This locator must have been a locator that was
-  ///   obtained from the server specified by `svchp`.
-  /// - newlen (IN):
-  ///   The new length of the LOB value, which must be less than or equal to the current length. For character LOBs,
-  ///   it is the number of characters; for binary LOBs and `BFILE`s, it is the number of bytes in the LOB.
-  fn OCILobTrim2(svchp: *mut OCISvcCtx,
-                 errhp: *mut OCIError,
-                 // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
-                 locp: *mut c_void/*OCILobLocator*/,
-                 newlen: u64) -> c_int;
   /// Reads a portion of a LOB or `BFILE`, as specified by the call, into a buffer. This function must be used
   /// for LOBs of size greater than 4 GB. You can also use this function for LOBs smaller than 4 GB.
   ///
@@ -514,6 +506,92 @@ extern "C" {
                   cbfp: Option<OCICallbackLobWrite2>,
                   csid: u16,
                   csfrm: u8) -> c_int;
+  /// Writes data starting at the end of a LOB. This function must be used for LOBs of size greater than 4 GB. You can also
+  /// use this function for LOBs smaller than 4 GB.
+  ///
+  /// The buffer can be written to the LOB in a single piece with this call, or it can be provided piecewise using callbacks
+  /// or a standard polling method. If the value of the piece parameter is `OCI_FIRST_PIECE`, data must be provided through
+  /// callbacks or polling. If a callback function is defined in the `cbfp` parameter, then this callback function is invoked
+  /// to get the next piece after a piece is written to the pipe. Each piece is written from bufp. If no callback function
+  /// is defined, then `OCILobWriteAppend2()` returns the `OCI_NEED_DATA` error code.
+  ///
+  /// The application must call `OCILobWriteAppend2()` again to write more pieces of the LOB. In this mode, the buffer pointer
+  /// and the length can be different in each call if the pieces are of different sizes and from different locations. A piece
+  /// value of `OCI_LAST_PIECE` terminates the piecewise write.
+  ///
+  /// The `OCILobWriteAppend2()` function is not supported if LOB buffering is enabled.
+  ///
+  /// If the LOB is a `BLOB`, the csid and csfrm parameters are ignored.
+  ///
+  /// If both `byte_amtp` and `char_amtp` are set to point to zero amount and `OCI_FIRST_PIECE` is given as input, then polling
+  /// mode is assumed and data is written until you specify `OCI_LAST_PIECE`. For `CLOB`s and `NCLOB`s, `byte_amtp` and
+  /// `char_amtp` return the data written by each piece in terms of number of bytes and number of characters respectively.
+  /// For `BLOB`s, `byte_amtp` returns the number of bytes written by each piece whereas `char_amtp` is undefined on output.
+  ///
+  /// It is not mandatory that you wrap this LOB operation inside the open or close calls. If you did not open the LOB before
+  /// performing this operation, then the functional and domain indexes on the LOB column are updated during this call. However,
+  /// if you did open the LOB before performing this operation, then you must close it before you commit your transaction.
+  /// When an internal LOB is closed, it updates the functional and domain indexes on the LOB column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes are updated
+  /// each time you write to the LOB. This can adversely affect performance. If you have functional or domain indexes, Oracle
+  /// recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   An internal LOB locator that uniquely references a LOB.
+  /// - byte_amtp (IN/OUT):
+  ///   * IN - The number of bytes to write to the database. Used for `BLOB`. For `CLOB` and `NCLOB` it is used only when
+  ///     `char_amtp` is zero.
+  ///   * OUT - The number of bytes written to the database.
+  /// - char_amtp (IN/OUT):
+  ///   * IN - The maximum number of characters to write to the database. Ignored for `BLOB`.
+  ///   * OUT - The number of characters written to the database. Undefined for `BLOB`.
+  /// - bufp (IN):
+  ///   The pointer to a buffer from which the piece is written. The length of the data in the buffer is assumed to be the
+  ///   value passed in buflen. Even if the data is being written in pieces, bufp must contain the first piece of the LOB
+  ///   when this call is invoked. If a callback is provided, `bufp` must not be used to provide data or an error results.
+  /// - buflen (IN):
+  ///   The length, in bytes, of the data in the buffer. Note that this parameter assumes an 8-bit byte. If your operating
+  ///   system uses a longer byte, the value of buflen must be adjusted accordingly.
+  /// - piece (IN):
+  ///   Which piece of the buffer is being written. The default value for this parameter is `OCI_ONE_PIECE`, indicating that
+  ///   the buffer is written in a single piece. The following other values are also possible for piecewise or callback mode:
+  ///   `OCI_FIRST_PIECE`, `OCI_NEXT_PIECE`, and `OCI_LAST_PIECE`.
+  /// - ctxp (IN):
+  ///   The context for the callback function. Can be `NULL`.
+  /// - cbfp (IN):
+  ///   A callback that can be registered to be called for each piece in a piecewise write. If this is `NULL`, the standard
+  ///   polling method is used. The callback function must return `OCI_CONTINUE` for the write to continue. If any other
+  ///   error code is returned, the LOB write is terminated. The callback takes the following parameters:
+  /// - csid (IN):
+  ///   The character set ID of the buffer data.
+  /// - csfrm (IN):
+  ///   The character set form of the buffer data.
+  ///
+  ///   The `csfrm` parameter has two possible nonzero values:
+  ///   * `SQLCS_IMPLICIT` - Database character set ID
+  ///   * `SQLCS_NCHAR` - NCHAR character set ID
+  ///
+  ///   The default value is `SQLCS_IMPLICIT`.
+  fn OCILobWriteAppend2(svchp: *mut OCISvcCtx,
+                        errhp: *mut OCIError,
+                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                        locp: *mut c_void/*OCILobLocator*/,
+                        byte_amtp: *mut u64,
+                        char_amtp: *mut u64,
+                        bufp: *mut c_void,
+                        buflen: u64,
+                        piece: u8,
+                        ctxp: *mut c_void,
+                        cbfp: Option<OCICallbackLobWrite2>,
+                        csid: u16,
+                        csfrm: u8) -> c_int;
+
   /// Erases a specified portion of the internal LOB data starting at a specified offset. This function must be used for LOBs
   /// of size greater than 4 GB. You can also use this function for LOBs smaller than 4 GB.
   ///
@@ -551,6 +629,39 @@ extern "C" {
                   locp: *mut c_void/*OCILobLocator*/,
                   amount: *mut u64,
                   offset: u64) -> c_int;
+  /// Truncates the LOB value to a shorter length. This function must be used for LOBs of size greater than 4 GB.
+  /// You can also use this function for LOBs smaller than 4 GB.
+  ///
+  /// This function trims the LOB data to a specified shorter length. The function returns an error if newlen is
+  /// greater than the current LOB length. This function is valid only for internal LOBs. `BFILE`s are not allowed.
+  ///
+  /// It is not mandatory that you wrap this LOB operation inside the open or close calls. If you did not open the
+  /// LOB before performing this operation, then the functional and domain indexes on the LOB column are updated
+  /// during this call. However, if you did open the LOB before performing this operation, then you must close it
+  /// before you commit your transaction. When an internal LOB is closed, it updates the functional and domain
+  /// indexes on the LOB column.
+  ///
+  /// If you do not wrap your LOB operations inside the open or close API, then the functional and domain indexes
+  /// are updated each time you write to the LOB. This can adversely affect performance. If you have functional or
+  /// domain indexes, Oracle recommends that you enclose write operations to the LOB within the open or close statements.
+  ///
+  /// # Parameters
+  ///
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   An internal LOB locator that uniquely references the LOB. This locator must have been a locator that was
+  ///   obtained from the server specified by `svchp`.
+  /// - newlen (IN):
+  ///   The new length of the LOB value, which must be less than or equal to the current length. For character LOBs,
+  ///   it is the number of characters; for binary LOBs and `BFILE`s, it is the number of bytes in the LOB.
+  fn OCILobTrim2(svchp: *mut OCISvcCtx,
+                 errhp: *mut OCIError,
+                 // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                 locp: *mut c_void/*OCILobLocator*/,
+                 newlen: u64) -> c_int;
 
   /// Opens a LOB, internal or external, in the indicated mode.
   ///
