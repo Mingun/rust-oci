@@ -237,6 +237,20 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
+  pub fn is_open(&self) -> DbResult<bool> {
+    let mut flag = 0;
+    let res = unsafe {
+      OCILobIsOpen(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        &mut flag
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(flag != 0)
+  }
 }
 
 /// The callback function must return `OCI_CONTINUE` for the read to continue. If any other error code is returned,
@@ -741,4 +755,33 @@ extern "C" {
                  errhp: *mut OCIError,
                  // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                  locp: *mut c_void/*OCILobLocator*/) -> c_int;
+  /// Tests whether a LOB or `BFILE` is open.
+  ///
+  /// Checks to see if the internal LOB is open or if the `BFILE` was opened using the input locator.
+  ///
+  /// * For `BFILE`s
+  ///   If the input `BFILE` locator was never passed to `OCILobOpen()` or `OCILobFileOpen()`, the `BFILE` is considered not to be opened
+  ///   by this `BFILE` locator. However, a different `BFILE` locator may have opened the `BFILE`. Multiple opens can be performed on the
+  ///   same `BFILE` using different locators. In other words, openness is associated with a specific locator for `BFILE`s.
+  /// * For internal LOBs
+  ///     Openness is associated with the LOB, not with the locator. If locator1 opened the LOB, then locator2 also sees the LOB as open.
+  ///
+  /// For internal LOBs, this call requires a server round-trip because it checks the state on the server to see if the LOB is open.
+  /// For external LOBs (`BFILE`s), this call also requires a round-trip because the operating system file on the server side must be
+  /// checked to see if it is open.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that can be passed to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN):
+  ///   Pointer to the LOB locator being examined. The locator can refer to an internal or external LOB.
+  /// - flag (OUT):
+  ///   Returns `TRUE` if the internal LOB is open or if the `BFILE` was opened using the input locator. Returns FALSE if it was not.
+  fn OCILobIsOpen(svchp: *mut OCISvcCtx,
+                  errhp: *mut OCIError,
+                  // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                  locp: *mut c_void/*OCILobLocator*/,
+                  flag: *mut c_int) -> c_int;
 }
