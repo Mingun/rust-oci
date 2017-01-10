@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/lob-functions.htm#LNOCI162
 
-use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ulonglong, c_ushort};
+use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ulonglong, c_ushort};
 use std::ptr;
 
 use {Connection, DbResult};
@@ -250,6 +250,21 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     try!(self.conn.error().check(res));
 
     Ok(flag != 0)
+  }
+}
+impl<'conn> LobImpl<'conn, File> {
+  pub fn set_filename(&mut self, directory: &str, filename: &str) -> DbResult<()> {
+    let res = unsafe {
+      OCILobFileSetName(
+        ptr::null_mut(),//self.conn.server.env.env.native as *mut OCIEnv,
+        self.conn.error().native_mut(),
+        &mut self.locator as *mut *mut File as *mut *mut c_void,
+        // Длина срезов возвращается, как и положено, в байтах
+        directory.as_ptr() as *const c_char, directory.len() as u16,
+        filename.as_ptr()  as *const c_char, filename.len()  as u16
+      )
+    };
+    self.conn.error().check(res)
   }
 }
 
@@ -784,4 +799,37 @@ extern "C" {
                   // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                   locp: *mut c_void/*OCILobLocator*/,
                   flag: *mut c_int) -> c_int;
+
+//-------------------------------------------------------------------------------------------------
+// Доступно только для BFILE
+//-------------------------------------------------------------------------------------------------
+  /// Sets the directory object and file name in the `BFILE` locator.
+  ///
+  /// It is an error to call this function for an internal LOB.
+  ///
+  /// # Parameters
+  /// - envhp (IN/OUT):
+  ///   OCI environment handle. Contains the UTF-16 setting.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - filepp (IN/OUT):
+  ///   Pointer to the `BFILE` locator for which to set the directory object and file name.
+  /// - dir_alias (IN):
+  ///   Buffer that contains the directory object name (must be in the encoding specified by the charset parameter
+  ///   of a previous call to `OCIEnvNlsCreate()`) to set in the `BFILE` locator.
+  /// - d_length (IN):
+  ///   Length (in bytes) of the input dir_alias parameter.
+  /// - filename (IN):
+  ///   Buffer that contains the file name (must be in the encoding specified by the charset parameter of a previous
+  ///   call to `OCIEnvNlsCreate()`) to set in the `BFILE` locator.
+  /// - f_length (IN):
+  ///   Length (in bytes) of the input filename parameter.
+  fn OCILobFileSetName(envhp: *mut OCIEnv,
+                       errhp: *mut OCIError,
+                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                       filepp: *mut *mut c_void/*OCILobLocator*/,
+                       dir_alias: *const c_char,
+                       d_length: u16,
+                       filename: *const c_char,
+                       f_length: u16) -> c_int;
 }
