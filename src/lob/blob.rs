@@ -26,6 +26,27 @@ impl<'conn> Blob<'conn> {
   pub fn capacity(&self) -> Result<u64> {
     self.impl_.capacity().map_err(Into::into)
   }
+  /// For LOBs with storage parameter `BASICFILE`, the amount of a chunk's space that is used to store
+  /// the internal LOB value. This is the amount that users should use when reading or writing the LOB
+  /// value. If possible, users should start their writes at chunk boundaries, such as the beginning of
+  /// a chunk, and write a chunk at a time.
+  ///
+  /// For LOBs with storage parameter `SECUREFILE`, chunk size is an advisory size and is provided for
+  /// backward compatibility.
+  ///
+  /// When creating a table that contains an internal LOB, the user can specify the chunking factor,
+  /// which can be a multiple of Oracle Database blocks. This corresponds to the chunk size used by
+  /// the LOB data layer when accessing and modifying the LOB value. Part of the chunk is used to store
+  /// system-related information, and the rest stores the LOB value. This function returns the amount
+  /// of space used in the LOB chunk to store the LOB value. Performance is improved if the application
+  /// issues read or write requests using a multiple of this chunk size. For writes, there is an added
+  /// benefit because LOB chunks are versioned and, if all writes are done on a chunk basis, no extra
+  /// versioning is done or duplicated. Users could batch up the write until they have enough for a chunk
+  /// instead of issuing several write calls for the same chunk.
+  #[inline]
+  pub fn get_chunk_size(&self) -> Result<u32> {
+    self.impl_.get_chunk_size().map_err(Into::into)
+  }
   /// Укорачивает данный объект до указанной длины. В случае, если нова длина больше предыдущей, будет
   /// возвращена ошибка (таким образом. данную функцию нельзя использовать для увеличения размера LOB).
   ///

@@ -330,6 +330,22 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     Ok(flag != 0)
   }
 }
+impl<'conn> LobImpl<'conn, Lob> {
+  pub fn get_chunk_size(&self) -> DbResult<u32> {
+    let mut size = 0;
+    let res = unsafe {
+      OCILobGetChunkSize(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        &mut size
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(size)
+  }
+}
 impl<'conn> LobImpl<'conn, File> {
   pub fn set_filename(&mut self, directory: &str, filename: &str) -> DbResult<()> {
     let res = unsafe {
@@ -987,6 +1003,29 @@ extern "C" {
                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                        locp: *mut c_void/*OCILobLocator*/,
                        is_temporary: *mut c_int) -> c_int;
+
+  /// Gets the chunk size of a LOB.
+  ///
+  /// When creating a table that contains an internal LOB, the user can specify the chunking factor, which can be a multiple of Oracle Database blocks. This corresponds to the chunk size used by the LOB data layer when accessing and modifying the LOB value. Part of the chunk is used to store system-related information, and the rest stores the LOB value. This function returns the amount of space used in the LOB chunk to store the LOB value. Performance is improved if the application issues read or write requests using a multiple of this chunk size. For writes, there is an added benefit because LOB chunks are versioned and, if all writes are done on a chunk basis, no extra versioning is done or duplicated. Users could batch up the write until they have enough for a chunk instead of issuing several write calls for the same chunk.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   The internal LOB for which to get the usable chunk size.
+  /// - chunk_size (OUT):
+  ///   * For LOBs with storage parameter `BASICFILE`, the amount of a chunk's space that is used to store the internal LOB value.
+  ///     This is the amount that users should use when reading or writing the LOB value. If possible, users should start their
+  ///     writes at chunk boundaries, such as the beginning of a chunk, and write a chunk at a time.
+  ///   * The `chunk_size` parameter is returned in terms of bytes for `BLOB`s, `CLOB`s, and `NCLOB`s.
+  ///   * For LOBs with storage parameter `SECUREFILE`, `chunk_size` is an advisory size and is provided for backward compatibility.
+  fn OCILobGetChunkSize(svchp: *mut OCISvcCtx,
+                        errhp: *mut OCIError,
+                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                        locp: *mut c_void/*OCILobLocator*/,
+                        chunk_size: *mut u32) -> c_int;
 
 //-------------------------------------------------------------------------------------------------
 // Доступно только для BFILE
