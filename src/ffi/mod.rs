@@ -1,8 +1,11 @@
 
-use std::os::raw::c_int;
+use std::ffi::CStr;
+use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_void};
+use std::ptr;
 
 use DbResult;
-use error::DbError;
+use error::{DbError, Info};
+use self::native::OCIErrorGet;// FFI функции
 
 pub mod attr;
 pub mod types;
@@ -76,6 +79,74 @@ pub trait ParamHandle {
 /// [2]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17294
 /// [id]: ./trait.HandleType.html#associatedconstant.ID
 pub trait VersionHandle : HandleType {}
+
+//-------------------------------------------------------------------------------------------------
+/// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
+///
+/// # Параметры
+/// - handle:
+///   Хендл, и которого можно извлечь информацию об ошибке. Обычно это специальный хендл `OCIError`, но
+///   в тех случаях, когда его нет (создание этого хендла ошибки и, почему-то, окружения), можно использовать
+///   хендл окружения `OCIEnv`
+/// - error_no:
+///   Вызовы функций могут возвращать множество ошибок. Это получаемый номер ошибки (нумерация с 1)
+/// - msg:
+///   Буфер, куда будет записано сообщение оракла об ошибке
+fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_int, Info) {
+  let mut code: c_int = 0;
+  // Сообщение получается в кодировке, которую установили для хендла окружения.
+  // Оракл рекомендует использовать буфер величиной 3072 байта
+  let mut buf: Vec<u8> = Vec::with_capacity(3072);
+  let res = unsafe {
+    OCIErrorGet(
+      handle as *mut c_void,
+      error_no,
+      ptr::null_mut(),// Устаревший с версии 8.x параметр, не используется
+      &mut code,
+      buf.as_mut_ptr() as *mut c_uchar,
+      buf.capacity() as c_uint,
+      T::ID as c_uint
+    )
+  };
+  unsafe {
+    // Так как функция только заполняет массив, но не возвращает длину, ее нужно вычислить и задать,
+    // иначе трансформация в строку ничего не даст, т.к. будет считать массив пустым.
+    let msg = CStr::from_ptr(buf.as_ptr() as *const c_char);
+    buf.set_len(msg.to_bytes().len());
+  };
+
+  (res, Info { code: code as isize, message: String::from_utf8(buf).expect("Invalid UTF-8 from OCIErrorGet") })
+}
+fn decode_error_full<T: ErrorHandle>(handle: *mut T) -> Vec<Info> {
+  let mut vec = Vec::new();
+
+  for i in 1.. {
+    let (res, info) = decode_error_piece(handle, i);
+    if res == 100 {// 100 == NoData
+      break;
+    }
+    vec.push(info)
+  }
+  return vec;
+}
+fn decode_error<T: ErrorHandle>(handle: *mut T, result: c_int) -> DbError {
+  match result {
+    // Относительный успех
+    0 => unreachable!(),// Сюда не должны попадать
+    1 => DbError::Info(decode_error_full(handle)),
+    99 => DbError::NeedData,
+    100 => DbError::NoData,
+
+    // Ошибки
+    -1 => {
+      let (_, info) = decode_error_piece(handle, 1);
+      DbError::Fault(info)
+    },
+    -2 => DbError::InvalidHandle,
+    -3123 => DbError::StillExecuting,
+    e => DbError::Unknown(e as isize),
+  }
+}
 
 /// Проверяет результат вызова FFI функции и возвращает либо успех в случае, если результат равен `0`,
 /// либо [неизвестную ошибку][1] базы данных. Используется в случаях, когда необходимо преобразовать

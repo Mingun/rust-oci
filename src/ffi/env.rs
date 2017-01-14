@@ -4,14 +4,14 @@ use std::os::raw::{c_uint, c_void};
 use std::ptr;
 
 use DbResult;
-use error::DbError;
 use types::CreateMode;
 
-use ffi::{check, Handle};// Основные типобезопасные примитивы
+use ffi::{check, decode_error, Handle};// Основные типобезопасные примитивы
 use ffi::{ErrorHandle, HandleType};// Типажи для безопасного моста к FFI
 
 use ffi::native::{OCIEnv, OCIError};// FFI типы
 use ffi::native::{OCIEnvNlsCreate, OCITerminate};// FFI функции
+
 //-------------------------------------------------------------------------------------------------
 /// Автоматически закрываемый хендл окружения оракла
 pub struct Env<'e> {
@@ -36,8 +36,7 @@ impl<'e> Env<'e> {
     };
     return match res {
       0 => Ok(Env { native: handle, mode: mode, phantom: PhantomData }),
-      // Ошибки создания окружения никуда не записываются, т.к. им просто некуда еще записываться
-      e => Err(DbError::Unknown(e as isize))
+      e => Err(decode_error(handle, e))
     };
   }
   /// Создает новый хендл в указанном окружении запрашиваемого типа
