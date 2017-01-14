@@ -40,6 +40,11 @@ impl<'env> Server<'env> {
       e => Err(env.error.decode(e))
     };
   }
+  /// Получает окружение, создавшее данный сервер
+  #[inline]
+  pub fn get_env(&self) -> &'env Environment<'env> {
+    self.env
+  }
   #[inline]
   pub fn new_handle<T: HandleType>(&self) -> DbResult<Handle<T>> {
     self.env.new_handle()

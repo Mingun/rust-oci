@@ -329,6 +329,21 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
 
     Ok(flag != 0)
   }
+  pub fn try_eq(&self, other: &Self) -> DbResult<bool> {
+    let env = self.conn.get_env();
+    let mut flag = 0;
+    let res = unsafe {
+      OCILobIsEqual(
+        env.native() as *mut OCIEnv,
+        self.locator as *const c_void,
+        other.locator as *const c_void,
+        &mut flag
+      )
+    };
+    try!(env.error().check(res));
+
+    Ok(flag != 0)
+  }
 }
 impl<'conn> LobImpl<'conn, Lob> {
   pub fn get_chunk_size(&self) -> DbResult<u32> {
@@ -376,6 +391,12 @@ impl<'conn> LobImpl<'conn, File> {
     Ok(flag != 0)
   }
 }
+impl<'conn, L: OCILobLocator> PartialEq for LobImpl<'conn, L> {
+  fn eq(&self, other: &Self) -> bool {
+    self.try_eq(other).expect("Error when compare LOB")
+  }
+}
+impl<'conn, L: OCILobLocator> Eq for LobImpl<'conn, L> {}
 
 /// The callback function must return `OCI_CONTINUE` for the read to continue. If any other error code is returned,
 /// the LOB read is terminated.
@@ -1026,6 +1047,27 @@ extern "C" {
                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                         locp: *mut c_void/*OCILobLocator*/,
                         chunk_size: *mut u32) -> c_int;
+  /// Compares two LOB or `BFILE` locators for equality.
+  ///
+  /// Compares the given LOB or `BFILE` locators for equality. Two LOB or `BFILE` locators are equal if and only if they both refer to
+  /// the same LOB or `BFILE` value.
+  ///
+  /// Two `NULL` locators are considered not equal by this function. 
+  ///
+  /// # Parameters
+  /// - envhp (IN):
+  ///   The OCI environment handle.
+  /// - x (IN):
+  ///   LOB locator to compare.
+  /// - y (IN):
+  ///   LOB locator to compare.
+  /// - is_equal (OUT):
+  ///   `TRUE`, if the LOB locators are equal; `FALSE` if they are not.
+  fn OCILobIsEqual(envhp: *mut OCIEnv,
+                   // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                   x: *const c_void/*OCILobLocator*/,
+                   y: *const c_void/*OCILobLocator*/,
+                   is_equal: *mut c_int) -> c_int;
 
 //-------------------------------------------------------------------------------------------------
 // Доступно только для BFILE

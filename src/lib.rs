@@ -77,7 +77,7 @@ use ffi::{Env, Server, Handle, Descriptor};// Основные типобезо�
 use ffi::{HandleType, DescriptorType};// Типажи для безопасного моста к FFI
 
 use ffi::types::{Attr, CredentialMode};
-use ffi::native::{OCISvcCtx, OCISession, OCIError};// FFI типы
+use ffi::native::{OCIEnv, OCISvcCtx, OCISession, OCIError};// FFI типы
 use ffi::native::{OCISessionBegin, OCISessionEnd};// FFI функции
 use ffi::native::time::{get_time_offset, sys_timestamp, TimestampWithTZ};
 
@@ -145,6 +145,11 @@ impl<'e> Environment<'e> {
   #[inline]
   fn error(&self) -> &Handle<OCIError> {
     &self.error
+  }
+  /// Получает голый указатель на хендл окружения, используемый для передачи в нативные функции.
+  #[inline]
+  fn native(&self) -> *const OCIEnv {
+    self.env.native()
   }
 }
 //-------------------------------------------------------------------------------------------------
@@ -225,6 +230,11 @@ impl<'e> Connection<'e> {
     &*(*p as *const T)
   }
 
+  /// Получает окружение, которое создало данное соединение.
+  #[inline]
+  pub fn get_env(&self) -> &'e Environment<'e> {
+    self.server.get_env()
+  }
   /// Возвращает версию сервера Oracle-а, к которому подключен клиент.
   ///
   /// Данная функция возвращает версию сервера. Если вам нужно получить версию клиента, то используйте вызов [`client_version()`][1].
