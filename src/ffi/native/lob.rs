@@ -58,6 +58,42 @@ pub enum LobOpenMode {
   /// Doing a Full Read of ILOB.
   FullRead      = 6,
 }
+/// Виды временных LOB, которые можно создать вызовом `OCILobCreateTemporary()`.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum LobType {
+  /// Создать временный `BLOB`.
+  Blob = 1,
+  /// Создать временный `CLOB` или `NCLOB`.
+  Clob = 2,
+}
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(deprecated)]// Позволяем deprecated внутри перечисления из-за https://github.com/rust-lang/rust/issues/38832
+pub enum OCIDuration {
+  Process = 5,
+  Next = 6,
+  UserCallback = 7,
+  Default = 8,
+  /// The option `OCI_DURATION_NULL` is used when the client does not want to set
+  /// the pin duration.  If the object is already loaded into the cache, then the
+  /// pin duration will remain the same.  If the object is not yet loaded, the
+  /// pin duration of the object will be set to `OCI_DURATION_DEFAULT`.
+  Null = 9,
+  /// Ресурсы временного LOB автоматически освобождаются при закрытии соединения, которое его породило
+  Session = 10,
+  /// Ресурсы временного LOB автоматически освобождаются при завершении транзакции, которая его породило
+  Trans = 11,
+  #[deprecated(note="Not recommented to use by Oracle")]
+  Call = 12,
+  /// Ресурсы временного LOB автоматически освобождаются при уничтожении выражения, которое его породило
+  Statement = 13,
+  /// This is to be used only during callouts.  It is similar to that 
+  /// of OCI_DURATION_CALL, but lasts only for the duration of a callout.
+  /// Its heap is from PGA
+  Callout = 14,
+  // Ресурсы временного LOB автоматически освобождаются при уничтожении указанного времени жизни.
+  // Доступно только в том случае, если окружение было инициализировано в объектном режиме.
+  //User(u16),
+}
 #[derive(Debug)]
 pub struct LobImpl<'conn, L: OCILobLocator> {
   conn: &'conn Connection<'conn>,
@@ -67,6 +103,48 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
   pub fn from(conn: &'conn Connection, locator: *mut L) -> Self {
     LobImpl { conn: conn, locator: locator }
   }
+  pub fn temporary_from(conn: &'conn Connection, locator: *mut L, ty: LobType, cache: bool) -> DbResult<Self> {
+    let res = unsafe {
+      OCILobCreateTemporary(
+        conn.context.native_mut(),
+        conn.error().native_mut(),
+        locator as *mut c_void,
+        0, // Начиная с Orace 8i требуется передавать значение по умолчанию, которое равно 0
+        Charset::Implicit as u8,
+        ty as u8,
+        cache as c_int,
+        OCIDuration::Session as u16
+      )
+    };
+    try!(conn.error().check(res));
+
+    Ok(LobImpl { conn: conn, locator: locator })
+  }
+  pub fn free_temporary(&self) -> DbResult<()> {
+    let res = unsafe {
+      OCILobFreeTemporary(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void
+      )
+    };
+    self.conn.error().check(res)
+  }
+  pub fn is_temporary(&self) -> DbResult<bool> {
+    let mut flag = 0;
+    let res = unsafe {
+      OCILobIsTemporary(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        &mut flag
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(flag != 0)
+  }
+
   /// Получает количество данных в данном объекте. Для бинарных объектов (`BLOB`-ов) это количество байт,
   /// для символьных (`CLOB`-ов) -- количество символов.
   ///
@@ -799,6 +877,101 @@ extern "C" {
                   // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                   locp: *mut c_void/*OCILobLocator*/,
                   flag: *mut c_int) -> c_int;
+
+  /// Creates a temporary LOB.
+  ///
+  /// This function creates a temporary LOB and its corresponding index in the user's temporary tablespace.
+  ///
+  /// When this function is complete, the locp parameter points to an empty temporary LOB whose length is zero.
+  ///
+  /// The lifetime of the temporary LOB is determined by the duration parameter. At the end of its duration the
+  /// temporary LOB is freed. An application can free a temporary LOB sooner with the `OCILobFreeTemporary()` call.
+  ///
+  /// If the LOB is a `BLOB`, the `csid` and `csfrm` parameters are ignored.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The OCI service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   A locator that points to the temporary LOB. You must allocate the locator using `OCIDescriptorAlloc()` before
+  ///   passing it to this function. It does not matter whether this locator points to a LOB; the temporary LOB gets
+  ///   overwritten either way.
+  /// - csid (IN):
+  ///   The LOB character set ID. For Oracle8i or later, pass as `OCI_DEFAULT`.
+  /// - csfrm (IN):
+  ///   The LOB character set form of the buffer data. The csfrm parameter has two possible nonzero values:
+  ///   * SQLCS_IMPLICIT - Database character set ID, to create a `CLOB`. `OCI_DEFAULT` can also be used to implicitly
+  ///     create a `CLOB`.
+  ///   * `SQLCS_NCHAR` - `NCHAR` character set ID, to create an `NCLOB`.
+  ///
+  ///   The default value is `SQLCS_IMPLICIT`.
+  /// - lobtype (IN):
+  ///   The type of LOB to create. Valid values include:
+  ///   * `OCI_TEMP_BLOB` - For a temporary `BLOB`
+  ///   * `OCI_TEMP_CLOB` - For a temporary `CLOB` or `NCLOB`
+  /// - cache (IN):
+  ///   Pass `TRUE` if the temporary LOB should be read into the cache; pass `FALSE` if it should not. The default
+  ///   is `FALSE` for `NOCACHE` functionality.
+  /// - duration (IN):
+  ///   The duration of the temporary LOB. The following are valid values:
+  ///   * `OCI_DURATION_SESSION`
+  ///   * `OCI_DURATION_CALL`
+  fn OCILobCreateTemporary(svchp: *mut OCISvcCtx,
+                           errhp: *mut OCIError,
+                           // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                           locp: *mut c_void/*OCILobLocator*/,
+                           csid: u16,
+                           csfrm: u8,
+                           lobtype: u8,
+                           cache: c_int,
+                           duration: u16) -> c_int;
+  /// Frees a temporary LOB.
+  ///
+  /// This function frees the contents of the temporary LOB to which this locator points. Note that the locator
+  /// itself is not freed until `OCIDescriptorFree()` is called. You must always call `OCILobFreeTemporary()` before
+  /// calling `OCIDescriptorFree()` or `OCIArrayDescriptorFree()` to free the contents of the temporary LOB. See
+  /// [About Freeing Temporary LOBs][1] for more information.
+  ///
+  /// This function returns an error if the LOB locator passed in the `locp` parameter does not point to a temporary
+  /// LOB, possibly because the LOB locator:
+  /// * Points to a permanent LOB
+  /// * Pointed to a temporary LOB that has been freed
+  /// * Has never pointed to anything
+  ///
+  /// # Parameters
+  /// - svchp (IN/OUT):
+  ///   The OCI service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to OCIErrorGet() for diagnostic information when there is an error.
+  /// - locp (IN/OUT):
+  ///   A locator uniquely referencing the LOB to be freed.
+  ///
+  /// [1]: http://docs.oracle.com/database/122/LNOCI/lobs-and-bfile-operations.htm#GUID-19F5922C-3560-476B-B414-27F13B5C2BAC
+  fn OCILobFreeTemporary(svchp: *mut OCISvcCtx,
+                         errhp: *mut OCIError,
+                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                         locp: *mut c_void/*OCILobLocator*/) -> c_int;
+  /// Tests if a locator points to a temporary LOB
+  ///
+  /// This function tests a locator to determine if it points to a temporary LOB. If so, is_temporary is set to `TRUE`.
+  /// If not, is_temporary is set to `FALSE`.
+  ///
+  /// # Parameters
+  /// - envhp (IN):
+  ///   The OCI environment handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - locp (IN):
+  ///   The locator to test.
+  /// - is_temporary (OUT):
+  ///   Returns TRUE if the LOB locator points to a temporary LOB; `FALSE` if it does not.
+  fn OCILobIsTemporary(svchp: *mut OCISvcCtx,
+                       errhp: *mut OCIError,
+                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                       locp: *mut c_void/*OCILobLocator*/,
+                       is_temporary: *mut c_int) -> c_int;
 
 //-------------------------------------------------------------------------------------------------
 // Доступно только для BFILE
