@@ -384,21 +384,21 @@ extern "C" {
   pub fn OCIDurationBegin(env: *mut OCIEnv,
                           err: *mut OCIError,
                           svc: *const OCISvcCtx,
-                          parent: c_ushort,
-                          duration: *mut c_ushort// результат
+                          parent: u16,
+                          duration: *mut u16// результат
                           ) -> c_int;
   /// Terminates a user duration for a temporary LOB.
   pub fn OCIDurationEnd(env: *mut OCIEnv,
                         err: *mut OCIError,
                         svc: *const OCISvcCtx,
-                        duration: c_ushort) -> c_int;
+                        duration: u16) -> c_int;
 
   /// Appends a LOB value at the end of another LOB as specified.
-  pub fn OCILobAppend(svchp: *mut OCISvcCtx,
-                      errhp: *mut OCIError,
-                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
-                      dst_locp: *mut c_void/*OCILobLocator*/,
-                      src_locp: *mut c_void/*OCILobLocator*/) -> c_int;
+  fn OCILobAppend(svchp: *mut OCISvcCtx,
+                  errhp: *mut OCIError,
+                  // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                  dst_locp: *mut c_void/*OCILobLocator*/,
+                  src_locp: *mut c_void/*OCILobLocator*/) -> c_int;
 
   /// Reads LOB data for multiple locators in one round-trip.
   /// This function can be used for LOBs of size greater than or less than 4 GB.
@@ -436,11 +436,11 @@ extern "C" {
                           csfrm: c_uchar) -> c_int;
 
   /// Assigns one LOB or BFILE locator to another.
-  pub fn OCILobAssign(envhp: *mut OCIEnv, 
-                      errhp: *mut OCIError,
-                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
-                      src_locp: *const c_void/*OCILobLocator*/,
-                      dst_locpp: *mut *mut c_void/*OCILobLocator*/) -> c_int;
+  fn OCILobLocatorAssign(svchp: *mut OCISvcCtx,
+                         errhp: *mut OCIError,
+                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                         src_locp: *const c_void/*OCILobLocator*/,
+                         dst_locpp: *mut *mut c_void/*OCILobLocator*/) -> c_int;
 
   /// Gets the length of a LOB. This function must be used for LOBs of size greater than 4 GB. You can also use this
   /// function for LOBs smaller than 4 GB.
