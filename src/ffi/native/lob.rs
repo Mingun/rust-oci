@@ -344,6 +344,21 @@ impl<'conn> LobImpl<'conn, File> {
     };
     self.conn.error().check(res)
   }
+  /// Проверяет, что указанный файл с данными существует на файловой системе сервера базы данных.
+  pub fn is_exist(&self) -> DbResult<bool> {
+    let mut flag = 0;
+    let res = unsafe {
+      OCILobFileExists(
+        self.conn.context.native_mut(),
+        self.conn.error().native_mut(),
+        self.locator as *mut c_void,
+        &mut flag
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(flag != 0)
+  }
 }
 
 /// The callback function must return `OCI_CONTINUE` for the read to continue. If any other error code is returned,
@@ -1005,4 +1020,22 @@ extern "C" {
                        d_length: u16,
                        filename: *const c_char,
                        f_length: u16) -> c_int;
+  /// Tests to see if the `BFILE` exists on the server's operating system.
+  ///
+  /// Checks to see if the `BFILE` exists on the server's file system. It is an error to call this function for an internal LOB.
+  ///
+  /// # Parameters
+  /// - svchp (IN):
+  ///   The OCI service context handle.
+  /// - errhp (IN/OUT):
+  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
+  /// - filep (IN):
+  ///   Pointer to the `BFILE` locator that refers to the file.
+  /// - flag (OUT):
+  ///   Returns `TRUE` if the `BFILE` exists on the server; `FALSE` if it does not.
+  fn OCILobFileExists(svchp: *mut OCISvcCtx,
+                      errhp: *mut OCIError,
+                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                      filep: *mut c_void/*OCILobLocator*/,
+                      flag: *mut c_int) -> c_int;
 }

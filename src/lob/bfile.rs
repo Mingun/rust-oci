@@ -20,6 +20,11 @@ impl<'conn> BFile<'conn> {
   pub fn len(&self) -> Result<u64> {
     self.impl_.len().map_err(Into::into)
   }
+  /// Проверяет, что указанный файл с данными существует на файловой системе сервера базы данных.
+  #[inline]
+  pub fn is_exist(&self) -> Result<bool> {
+    self.impl_.is_exist().map_err(Into::into)
+  }
   /// Создает читателя данного файлового бинарного объекта. В отличие от BLOB-ов, файловые объект должны
   /// быть явно открыты, чтобы выполнять из них чтение.
   #[inline]
