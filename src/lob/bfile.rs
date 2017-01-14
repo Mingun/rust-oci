@@ -4,7 +4,7 @@ use std::io;
 use {Connection, Result};
 use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode};
 
-use super::LobPrivate;
+use super::{Bytes, LobPrivate};
 
 //-------------------------------------------------------------------------------------------------
 /// Указатель на большой бинарный объект, представленный внешним по отношению к базе данных файлом
@@ -17,8 +17,9 @@ pub struct BFile<'conn> {
 impl<'conn> BFile<'conn> {
   /// Получает количество байт, содержащихся в данном объекте в данный момент.
   #[inline]
-  pub fn len(&self) -> Result<u64> {
-    self.impl_.len().map_err(Into::into)
+  pub fn len(&self) -> Result<Bytes> {
+    let len = try!(self.impl_.len());
+    Ok(Bytes(len))
   }
   /// Проверяет, что указанный файл с данными существует на файловой системе сервера базы данных.
   #[inline]

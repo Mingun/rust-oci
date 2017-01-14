@@ -11,6 +11,13 @@ mod bfile;
 pub use self::blob::{Blob, BlobWriter};
 pub use self::bfile::{BFile, BFileReader};
 
+/// Тип, представляющий размер в байтах.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub struct Bytes(pub u64);
+/// Тип, представляющий размер в символах.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
+pub struct Chars(pub u64);
+
 trait LobPrivate<'a> : Sized + 'a {
   fn new(raw: &[u8], conn: &'a Connection) -> Self;
 }

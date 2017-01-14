@@ -4,7 +4,7 @@ use std::io;
 use {Connection, Result};
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
-use super::LobPrivate;
+use super::{Bytes, LobPrivate};
 
 //-------------------------------------------------------------------------------------------------
 /// Указатель на большой бинарный объект (BLOB).
@@ -16,15 +16,17 @@ pub struct Blob<'conn> {
 impl<'conn> Blob<'conn> {
   /// Получает количество байт, содержащихся в данном объекте в данный момент.
   #[inline]
-  pub fn len(&self) -> Result<u64> {
-    self.impl_.len().map_err(Into::into)
+  pub fn len(&self) -> Result<Bytes> {
+    let len = try!(self.impl_.len());
+    Ok(Bytes(len))
   }
   /// Получает максимальное количество байт, которое может быть сохранено в данном объекте.
   /// В зависимости от настроек сервера базы данных данное значение может варьироваться от
   /// 8 до 128 терабайт (TB).
   #[inline]
-  pub fn capacity(&self) -> Result<u64> {
-    self.impl_.capacity().map_err(Into::into)
+  pub fn capacity(&self) -> Result<Bytes> {
+    let len = try!(self.impl_.capacity());
+    Ok(Bytes(len))
   }
   /// For LOBs with storage parameter `BASICFILE`, the amount of a chunk's space that is used to store
   /// the internal LOB value. This is the amount that users should use when reading or writing the LOB
@@ -44,11 +46,12 @@ impl<'conn> Blob<'conn> {
   /// versioning is done or duplicated. Users could batch up the write until they have enough for a chunk
   /// instead of issuing several write calls for the same chunk.
   #[inline]
-  pub fn get_chunk_size(&self) -> Result<u32> {
-    self.impl_.get_chunk_size().map_err(Into::into)
+  pub fn get_chunk_size(&self) -> Result<Bytes> {
+    let size = try!(self.impl_.get_chunk_size());
+    Ok(Bytes(size as u64))
   }
-  /// Укорачивает данный объект до указанной длины. В случае, если нова длина больше предыдущей, будет
-  /// возвращена ошибка (таким образом. данную функцию нельзя использовать для увеличения размера LOB).
+  /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
+  /// возвращена ошибка (таким образом, данную функцию нельзя использовать для увеличения размера LOB).
   ///
   /// # Производительность
   /// Необходимо учитывать, что в случае частой записи предпочтительней делать ее через специальный
@@ -58,8 +61,8 @@ impl<'conn> Blob<'conn> {
   /// При вызове же данной функции обновление данных индексов произойдет сразу же по окончании вызова, что
   /// может сильно снизить производительность.
   #[inline]
-  pub fn trim(&mut self, len: u64) -> Result<()> {
-    self.impl_.trim(len).map_err(Into::into)
+  pub fn trim(&mut self, len: Bytes) -> Result<()> {
+    self.impl_.trim(len.0).map_err(Into::into)
   }
   /// Заполняет LOB, начиная с указанного индекса, указанным количеством нулей. После завершения
   /// работы в `count` будет записано реальное количество  очищенных байт.
@@ -72,14 +75,17 @@ impl<'conn> Blob<'conn> {
   /// При вызове же данной функции обновление данных индексов произойдет сразу же по окончании вызова, что
   /// может сильно снизить производительность.
   #[inline]
-  pub fn erase(&mut self, offset: u64, count: &mut u64) -> Result<()> {
-    self.impl_.erase(offset, count).map_err(Into::into)
+  pub fn erase(&mut self, offset: Bytes, count: &mut Bytes) -> Result<()> {
+    self.impl_.erase(offset.0, &mut count.0).map_err(Into::into)
   }
 
   /// Создает писателя в данный бинарный объект. Преимущество использования писателя вместо прямой записи
   /// в объект в том, что функциональные и доменные индексы базы данных (если они есть) для данного большого
   /// объекта будут обновлены только после уничтожения писателя, а не при каждой записи в объект, что в
   /// лучшую сторону сказывается на производительности.
+  ///
+  /// В пределах одной транзакции один BLOB может быть открыт только единожды, независимо от того, сколько
+  /// локаторов (которые представляет данный класс) на него существует.
   #[inline]
   pub fn new_writer(&'conn mut self) -> Result<BlobWriter<'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
@@ -116,8 +122,8 @@ pub struct BlobWriter<'lob> {
   lob: &'lob mut Blob<'lob>,
 }
 impl<'lob> BlobWriter<'lob> {
-  /// Укорачивает данный объект до указанной длины. В случае, если нова длина больше предыдущей, будет
-  /// возвращена ошибка (таким образом. данную функцию нельзя использовать для увеличения размера LOB).
+  /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
+  /// возвращена ошибка (таким образом, данную функцию нельзя использовать для увеличения размера LOB).
   ///
   /// # Производительность
   /// Необходимо учитывать, что в случае частой записи предпочтительней делать ее через специальный
@@ -127,13 +133,13 @@ impl<'lob> BlobWriter<'lob> {
   /// При вызове же данной функции обновление данных индексов произойдет сразу же по окончании вызова, что
   /// может сильно снизить производительность.
   #[inline]
-  pub fn trim(&mut self, len: u64) -> Result<()> {
+  pub fn trim(&mut self, len: Bytes) -> Result<()> {
     self.lob.trim(len)
   }
   /// Заполняет LOB, начиная с указанного индекса, указанным количеством нулей. После завершения
-  /// работы в `count` будет записано реальное количество  очищенных байт.
+  /// работы в `count` будет записано реальное количество очищенных байт.
   #[inline]
-  pub fn erase(&mut self, offset: u64, count: &mut u64) -> Result<()> {
+  pub fn erase(&mut self, offset: Bytes, count: &mut Bytes) -> Result<()> {
     self.lob.erase(offset, count)
   }
 }
