@@ -235,3 +235,32 @@ pub enum Syntax {
 impl Default for Syntax {
   fn default() -> Self { Syntax::Native }
 }
+/// Виды выражений, которые могут быть у него после его подготовки.
+/// Вид выражения влияет на то, с какими параметрыми вызывать функцию `OCIExecute()`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+#[repr(u16)]
+pub enum StatementType {
+  /// Unknown statement
+  UNKNOWN = 0,
+  /// Select statement
+  SELECT  = 1,
+  /// Update statement
+  UPDATE  = 2,
+  /// delete statement
+  DELETE  = 3,
+  /// Insert Statement
+  INSERT  = 4,
+  /// create statement
+  CREATE  = 5,
+  /// drop statement
+  DROP    = 6,
+  /// alter statement
+  ALTER   = 7,
+  /// begin ... (pl/sql statement)
+  BEGIN   = 8,
+  /// declare .. (pl/sql statement)
+  DECLARE = 9,
+  /// corresponds to kpu call
+  CALL    = 10,
+}

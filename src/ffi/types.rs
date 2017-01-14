@@ -174,11 +174,15 @@ pub enum Descriptor {
 pub enum Attr {
   Server = 6,
   Session = 7,
-  RowCount = 9,
+  /// Количество строк, извлеченных последним последним вызовом `OCIStmtFetch2` (для `select` выражений)
+  /// или количество затронутых строк (для `update`, `insert` и `delete` выражений).
+  RowCount = 457,
   /// Атрибут на хендле выражения, показывает количество колонок, извлекаемых `select` выражением
   ParamCount = 18,
   Username = 22,
   Password = 23,
+  /// Тип выражения (выборка, обновление и т.п.)
+  StmtType = 24,
 
 
 // Attributes common to Columns and Stored Procs

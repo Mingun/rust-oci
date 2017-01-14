@@ -10,7 +10,7 @@ use {Connection, DbResult, Result};
 use convert::FromDB;
 use error::{self, Error};
 use error::DbError::{Info, NoData, Fault};
-use types::{Type, Syntax};
+use types::{Type, Syntax, StatementType};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
 use ffi::ParamHandle;// Типажи для безопасного моста к FFI
@@ -233,7 +233,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// Получает количество cтрок, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
   /// или количество строк, полученное последним вызовом fetch для `SELECT` запроса.
   #[inline]
-  fn row_count(&self) -> DbResult<c_uint> {
+  fn row_count(&self) -> DbResult<u64> {
     self.get_(Attr::RowCount, self.error())
   }
   /// Получает дескриптор с описанием столбца в полученном списке извлеченных `SELECT`-ом столбцов для указанного столбца.
@@ -259,6 +259,12 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   #[inline]
   pub fn connection(&self) -> &Connection {
     self.conn
+  }
+  /// Получает информацию о типе выражения.
+  pub fn get_type(&self) -> Result<StatementType> {
+    let ty: u16 = try!(self.get_(Attr::StmtType, self.error()));
+
+    Ok(unsafe { mem::transmute(ty) })
   }
   /// Выполняет `SELECT`-запрос и возвращает ленивый итератор по результатам. Результаты будут извлекаться из итератора только по мере
   /// его продвижения. Так как неизвлеченные данные при этом на сервере хранятся в буферах, привязанных к конкретному выражению, то
@@ -308,23 +314,39 @@ impl<'conn, 'key> Statement<'conn, 'key> {
 
     RowSet::new(self)
   }
-  /// Выполняет DDL или `INSERT/UPDATE/DELETE` запрос. В последнем случае возвращает количество строк,
-  /// затронутых запросом (т.е. количество добавленных/обновленных/удаленных строк). Для DDL выражений
-  /// (например, `create table`) возвращает `0`.
+  /// Выполняет любой запрос. В случае выполнения `INSERT/UPDATE/DELETE` запроса возвращает количество строк,
+  /// затронутых запросом (т.е. количество добавленных/обновленных/удаленных строк). Для DDL выражений (например,
+  /// `create table`) возвращает `0`.
+  ///
+  /// Для получения результата от `SELECT` выражения после выполнения данной функции вызовите метод [`get_last_rowset`][1],
+  /// либо вместо данного метода воспользуйтесь методом [`query()`][2].
   ///
   /// # OCI вызовы
-  /// Для выполнения выражения непосредственно при вызове данной функции используется OCI-вызов [`OCIStmtExecute()`][1]. Для последующего
-  /// получения количества затронутых строк используется вызов [`OCIAttrGet()`][2].
+  /// Для выполнения выражения непосредственно при вызове данной функции используется OCI-вызов [`OCIStmtExecute()`][3].
+  /// Для последующего  получения количества затронутых строк используется вызов [`OCIAttrGet()`][4].
   ///
   /// # Запросы к серверу (1)
-  /// Непосредственно в момент вызова данной функции выполняется один вызов [`OCIStmtExecute()`][1].
+  /// Непосредственно в момент вызова данной функции выполняется один вызов [`OCIStmtExecute()`][3].
   ///
-  /// [1]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
-  /// [2]: https://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI17130
+  /// [1]: #method.get_last_rowset
+  /// [2]: #method.query
+  /// [3]: https://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17163
+  /// [4]: https://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI17130
   pub fn execute(&self) -> Result<usize> {
-    try!(self.execute_impl(1, 0, Default::default()));
+    let count = match try!(self.get_type()) {
+      StatementType::SELECT => 0,
+      _ => 1,
+    };
+    try!(self.execute_impl(count, 0, Default::default()));
 
     Ok(try!(self.row_count()) as usize)
+  }
+  /// Получает результат последнего исполненного выражения, если это было `SELECT`-выражение и `None` в противном случае.
+  pub fn get_last_rowset(&mut self) -> Result<Option<RowSet>> {
+    match try!(self.get_type()) {
+      StatementType::SELECT => RowSet::new(self).map(|r| Some(r)),
+      _ => Ok(None),
+    }
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
