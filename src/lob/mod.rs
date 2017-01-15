@@ -9,7 +9,7 @@ mod blob;
 mod clob;
 mod bfile;
 
-pub use self::blob::{Blob, BlobWriter};
+pub use self::blob::{Blob, BlobReader, BlobWriter};
 pub use self::clob::{Clob, ClobWriter};
 pub use self::bfile::{BFile, BFileReader};
 

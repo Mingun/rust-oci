@@ -80,6 +80,12 @@ impl<'conn> Blob<'conn> {
     self.impl_.erase(offset.0, &mut count.0).map_err(Into::into)
   }
 
+  /// Создает читателя данного бинарного объекта. Каждый вызов метода `read` читателя читает очередную порцию данных.
+  #[inline]
+  pub fn new_reader(&'conn mut self) -> Result<BlobReader<'conn>> {
+    try!(self.impl_.open(LobOpenMode::ReadOnly));
+    Ok(BlobReader { lob: self, piece: LobPiece::First })
+  }
   /// Создает писателя в данный бинарный объект. Преимущество использования писателя вместо прямой записи
   /// в объект в том, что функциональные и доменные индексы базы данных (если они есть) для данного большого
   /// объекта будут обновлены только после уничтожения писателя, а не при каждой записи в объект, что в
@@ -154,6 +160,27 @@ impl<'lob> io::Write for BlobWriter<'lob> {
 }
 impl<'lob> Drop for BlobWriter<'lob> {
   fn drop(&mut self) {
-    self.lob.impl_.close().expect("Error when close LOB");
+    self.lob.impl_.close().expect("Error when close BLOB writer");
+  }
+}
+
+//-------------------------------------------------------------------------------------------------
+/// Позволяет читать из большой бинарного объекта в потоковом режиме. Каждый вызов `read` читает очередную порцию данных.
+pub struct BlobReader<'lob> {
+  lob: &'lob mut Blob<'lob>,
+  piece: LobPiece,
+}
+impl<'lob> io::Read for BlobReader<'lob> {
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    // Параметр charset игнорируется для бинарных объектов
+    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf);
+    self.piece = LobPiece::Next;
+
+    res.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+  }
+}
+impl<'lob> Drop for BlobReader<'lob> {
+  fn drop(&mut self) {
+    self.lob.impl_.close().expect("Error when close BLOB reader");
   }
 }

@@ -7,6 +7,7 @@ use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ulonglong, c_ushort
 use std::ptr;
 
 use {Connection, DbResult};
+use error::DbError::NeedData;
 use types::Charset;
 
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
@@ -192,8 +193,10 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     self.conn.error().check(res)
   }
   pub fn read(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8]) -> DbResult<usize> {
-    // Количество того, сколько читать и сколько было реально прочитано
-    let mut readed = buf.len() as u64;
+    // Количество того, сколько читать и сколько было реально прочитано.
+    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
+    // Однако в случае чтения за один раз необходипо передать количество байт/символов для чтения
+    let mut readed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
     let res = unsafe {
       OCILobRead2(
         self.conn.context.native_mut(),
@@ -210,11 +213,13 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         charset as u16, CharsetForm::Implicit as u8
       )
     };
-    try!(self.conn.error().check(res));
 
-    // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
-    // не превышает usize.
-    Ok(readed as usize)
+    match self.conn.error().check(res) {
+      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize.
+      Ok(_) | Err(NeedData) => Ok(readed as usize),
+      e => e.map(|_| readed as usize),
+    }
   }
   pub fn write(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
@@ -237,11 +242,13 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         charset as u16, CharsetForm::Implicit as u8
       )
     };
-    try!(self.conn.error().check(res));
 
-    // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
-    // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-    Ok(writed as usize)
+    match self.conn.error().check(res) {
+      // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Ok(_) | Err(NeedData) => Ok(writed as usize),
+      e => e.map(|_| writed as usize),
+    }
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
   pub fn append(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {

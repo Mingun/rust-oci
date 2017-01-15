@@ -32,7 +32,7 @@ impl<'conn> BFile<'conn> {
   #[inline]
   pub fn new_reader(&'conn mut self) -> Result<BFileReader<'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
-    Ok(BFileReader { lob: self })
+    Ok(BFileReader { lob: self, piece: LobPiece::First })
   }
 }
 impl<'conn> LobPrivate<'conn> for BFile<'conn> {
@@ -48,11 +48,15 @@ impl<'conn> LobPrivate<'conn> for BFile<'conn> {
 /// Позволяет читать из файлового объекта. При уничтожении закрывает файловый объект.
 pub struct BFileReader<'lob> {
   lob: &'lob mut BFile<'lob>,
+  piece: LobPiece,
 }
 impl<'lob> io::Read for BFileReader<'lob> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
-    self.lob.impl_.read(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf);
+    self.piece = LobPiece::Next;
+
+    res.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'lob> Drop for BFileReader<'lob> {
