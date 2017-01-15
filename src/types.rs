@@ -264,3 +264,85 @@ pub enum StatementType {
   /// corresponds to kpu call
   CALL    = 10,
 }
+/// Виды кодировок, поддерживаемых базой данных.
+///
+/// В документации нигде не перечислены соответствия имени кодировки ее числовому значению, поэтому они получены
+/// следующим SQL-скриптом:
+/// ```sql
+/// select value as name, nls_charset_id(value) as val
+///   from v$nls_valid_values
+///  where parameter = 'CHARACTERSET'
+/// order by nls_charset_id(value)
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+#[allow(missing_docs)]
+pub enum Charset {
+  /// Использовать настройки из переменных окружения `NLS_LANG` (для типов `CHAR`, `VARCHAR2` и `CLOB`)
+  /// и `NLS_NCHAR` (для типов `NCHAR`, `NVARCHAR2` и `NCLOB`).
+  ///
+  /// Данная настройка является настройкой по умолчанию для базы данных и библиотека возвращает ее в реализации
+  /// метода `default()`.
+  Default        =    0,
+  US7ASCII       =    1,
+  US8PC437       =    4,
+  WE8PC850       =   10,
+  WE8PC858       =   28,
+  WE8ISO8859P1   =   31,
+  EE8ISO8859P2   =   32,
+  SE8ISO8859P3   =   33,
+  NEE8ISO8859P4  =   34,
+  CL8ISO8859P5   =   35,
+  AR8ISO8859P6   =   36,
+  EL8ISO8859P7   =   37,
+  IW8ISO8859P8   =   38,
+  WE8ISO8859P9   =   39,
+  NE8ISO8859P10  =   40,
+  TH8TISASCII    =   41,
+  VN8MSWIN1258   =   45,
+  WE8ISO8859P15  =   46,
+  BLT8ISO8859P13 =   47,
+  CEL8ISO8859P14 =   48,
+  CL8KOI8U       =   51,
+  AZ8ISO8859P9E  =   52,
+  EE8PC852       =  150,
+  RU8PC866       =  152,
+  TR8PC857       =  156,
+  EE8MSWIN1250   =  170,
+  CL8MSWIN1251   =  171,
+  ET8MSWIN923    =  172,
+  EL8MSWIN1253   =  174,
+  IW8MSWIN1255   =  175,
+  LT8MSWIN921    =  176,
+  TR8MSWIN1254   =  177,
+  WE8MSWIN1252   =  178,
+  BLT8MSWIN1257  =  179,
+  BLT8CP921      =  191,
+  CL8KOI8R       =  196,
+  BLT8PC775      =  197,
+  EL8PC737       =  382,
+  AR8ASMO8X      =  500,
+  AR8ADOS720     =  558,
+  AR8MSWIN1256   =  560,
+  JA16EUC        =  830,
+  JA16SJIS       =  832,
+  JA16EUCTILDE   =  837,
+  JA16SJISTILDE  =  838,
+  KO16KSC5601    =  840,
+  KO16MSWIN949   =  846,
+  ZHS16CGB231280 =  850,
+  ZHS16GBK       =  852,
+  ZHS32GB18030   =  854,
+  ZHT32EUC       =  860,
+  ZHT16BIG5      =  865,
+  ZHT16MSWIN950  =  867,
+  ZHT16HKSCS     =  868,
+  UTF8           =  871,
+  AL32UTF8       =  873,
+  AL16UTF16      = 2000,
+}
+impl Default for Charset {
+  fn default() -> Self {
+    Charset::Default
+  }
+}

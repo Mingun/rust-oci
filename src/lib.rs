@@ -6,13 +6,13 @@
 //! ```rust
 //! extern crate oci;
 //! use oci::Environment;
-//! use oci::params::{ConnectParams, Credentials};
-//! use oci::types::{AttachMode, AuthMode, CreateMode};
+//! use oci::params::{InitParams, ConnectParams, Credentials};
+//! use oci::types::{AttachMode, AuthMode};
 //! use oci::version::client_version;
 //! 
 //! fn main() {
 //!   // Инициализируем клиентскую библиотеку Oracle
-//!   let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
+//!   let env = Environment::new(InitParams::default()).expect("Can't create ORACLE environment");
 //! 
 //!   // Создаем параметры. Вскоре их можно будет распарсить из строки (jdbc и sql*plus версий)
 //!   let params = ConnectParams {
@@ -68,9 +68,9 @@ type DbResult<T> = std::result::Result<T, error::DbError>;
 
 use std::os::raw::c_uint;
 
-use params::{ConnectParams, Credentials};
+use params::{InitParams, ConnectParams, Credentials};
 use stmt::Statement;
-use types::{CreateMode, AuthMode, Syntax};
+use types::{AuthMode, Syntax};
 use version::Version;
 
 use ffi::{Env, Server, Handle, Descriptor};// Основные типобезопасные примитивы
@@ -97,7 +97,7 @@ pub struct Environment<'e> {
   error: Handle<OCIError>,
 }
 impl<'e> Environment<'e> {
-  /// Создает окружение -- менеджер подключений к базе данных. Параметр `mode` позволяет задать возможности,
+  /// Создает окружение -- менеджер подключений к базе данных. Поле `mode` в параметрах позволяет задать возможности,
   /// которые будут доступны при работе с базой данных.
   ///
   /// # OCI вызовы
@@ -106,8 +106,8 @@ impl<'e> Environment<'e> {
   ///
   /// [new]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-0B6911A9-4B46-476C-BC5E-B87581666CD9
   /// [end]: http://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#GUID-B7BC5F9E-811C-490A-B308-472A12D690D2
-  pub fn new(mode: CreateMode) -> Result<Self> {
-    let mut env = try!(Env::new(mode));
+  pub fn new<P: Into<InitParams>>(params: P) -> Result<Self> {
+    let mut env = try!(Env::new(params.into()));
     let err: Handle<OCIError> = try!(env.new_error_handle());
 
     Ok(Environment { env: env, error: err })
@@ -150,6 +150,13 @@ impl<'e> Environment<'e> {
   #[inline]
   fn native(&self) -> *const OCIEnv {
     self.env.native()
+  }
+}
+impl<'e> Default for Environment<'e> {
+  /// Создает окружение с использованеим параметров по умочланию. Вызывает понику текущего потока, если
+  /// при создании окружения произошла ошибка
+  fn default() -> Self {
+    Environment::new(InitParams::default()).expect("Can't create environment with default parameters")
   }
 }
 //-------------------------------------------------------------------------------------------------

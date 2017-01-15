@@ -7,6 +7,7 @@ use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ulonglong, c_ushort
 use std::ptr;
 
 use {Connection, DbResult};
+use types::Charset;
 
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
@@ -31,7 +32,7 @@ pub enum LobPiece {
   Last  = 3,
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Charset {
+pub enum CharsetForm {
   /// For `CHAR`, `VARCHAR2`, `CLOB` w/o a specified set.
   Implicit = 1,
   /// For `NCHAR`, `NCHAR VARYING`, `NCLOB`.
@@ -109,8 +110,8 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         conn.context.native_mut(),
         conn.error().native_mut(),
         locator as *mut c_void,
-        0, // Начиная с Orace 8i требуется передавать значение по умолчанию, которое равно 0
-        Charset::Implicit as u8,
+        Charset::Default as u16, // Начиная с Orace 8i требуется передавать значение по умолчанию, которое равно 0
+        CharsetForm::Implicit as u8,
         ty as u8,
         cache as c_int,
         OCIDuration::Session as u16
@@ -190,7 +191,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &mut [u8]) -> DbResult<usize> {
+  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8]) -> DbResult<usize> {
     // Количество того, сколько читать и сколько было реально прочитано
     let mut readed = buf.len() as u64;
     let res = unsafe {
@@ -206,7 +207,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         piece as u8,
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
-        charset, Charset::Implicit as u8
+        charset as u16, CharsetForm::Implicit as u8
       )
     };
     try!(self.conn.error().check(res));
@@ -215,7 +216,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     // не превышает usize.
     Ok(readed as usize)
   }
-  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
+  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -233,7 +234,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
         // Данные параметры игнорируются для BLOB-ов.
-        charset, Charset::Implicit as u8
+        charset as u16, CharsetForm::Implicit as u8
       )
     };
     try!(self.conn.error().check(res));
@@ -243,7 +244,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     Ok(writed as usize)
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
-  pub fn append(&mut self, piece: LobPiece, charset: u16, buf: &[u8]) -> DbResult<usize> {
+  pub fn append(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -258,7 +259,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
         // Данные параметры игнорируются для BLOB-ов.
-        charset, Charset::Implicit as u8
+        charset as u16, CharsetForm::Implicit as u8
       )
     };
     try!(self.conn.error().check(res));
@@ -1027,7 +1028,13 @@ extern "C" {
 
   /// Gets the chunk size of a LOB.
   ///
-  /// When creating a table that contains an internal LOB, the user can specify the chunking factor, which can be a multiple of Oracle Database blocks. This corresponds to the chunk size used by the LOB data layer when accessing and modifying the LOB value. Part of the chunk is used to store system-related information, and the rest stores the LOB value. This function returns the amount of space used in the LOB chunk to store the LOB value. Performance is improved if the application issues read or write requests using a multiple of this chunk size. For writes, there is an added benefit because LOB chunks are versioned and, if all writes are done on a chunk basis, no extra versioning is done or duplicated. Users could batch up the write until they have enough for a chunk instead of issuing several write calls for the same chunk.
+  /// When creating a table that contains an internal LOB, the user can specify the chunking factor, which can be a multiple of Oracle
+  /// Database blocks. This corresponds to the chunk size used by the LOB data layer when accessing and modifying the LOB value. Part
+  /// of the chunk is used to store system-related information, and the rest stores the LOB value. This function returns the amount of
+  /// space used in the LOB chunk to store the LOB value. Performance is improved if the application issues read or write requests using
+  /// a multiple of this chunk size. For writes, there is an added benefit because LOB chunks are versioned and, if all writes are done
+  /// on a chunk basis, no extra versioning is done or duplicated. Users could batch up the write until they have enough for a chunk
+  /// instead of issuing several write calls for the same chunk.
   ///
   /// # Parameters
   /// - svchp (IN):

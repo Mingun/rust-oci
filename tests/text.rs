@@ -46,7 +46,7 @@ mod utils;
 
 #[test]
 fn null_extract() {
-  let env = Environment::new(Default::default()).unwrap();
+  let env = Environment::default();
   let conn = utils::connect(&env);
   let mut stmt = conn.prepare("select * from type_text where id = 0").expect("Can't prepare query");
 
@@ -58,7 +58,7 @@ fn null_extract() {
   }
 }
 fn extract_test(column: usize, expected: String) {
-  let env = Environment::new(Default::default()).unwrap();
+  let env = Environment::default();
   let conn = utils::connect(&env);
   let mut stmt = conn.prepare("select * from type_text where id = 1").expect("Can't prepare query");
 

@@ -2,6 +2,7 @@
 use std::io;
 
 use {Connection, Result};
+use types::Charset;
 use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode};
 
 use super::{Bytes, LobPrivate};
@@ -50,7 +51,8 @@ pub struct BFileReader<'lob> {
 }
 impl<'lob> io::Read for BFileReader<'lob> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    self.lob.impl_.read(0, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    // Параметр charset игнорируется для бинарных объектов
+    self.lob.impl_.read(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'lob> Drop for BFileReader<'lob> {

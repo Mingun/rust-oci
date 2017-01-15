@@ -2,6 +2,7 @@
 use std::io;
 
 use {Connection, Result};
+use types::Charset;
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
 use super::{Bytes, LobPrivate};
@@ -103,13 +104,13 @@ impl<'conn> LobPrivate<'conn> for Blob<'conn> {
 impl<'conn> io::Read for Blob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
-    self.impl_.read(0, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.impl_.read(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
 }
 impl<'conn> io::Write for Blob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
-    self.impl_.write(0, LobPiece::One, 0, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    self.impl_.write(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())

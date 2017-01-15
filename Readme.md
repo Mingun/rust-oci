@@ -6,13 +6,13 @@
 ```rust
 extern crate oci;
 use oci::Environment;
-use oci::params::{ConnectParams, Credentials};
-use oci::types::{AttachMode, AuthMode, CreateMode};
+use oci::params::{InitParams, ConnectParams, Credentials};
+use oci::types::{AttachMode, AuthMode};
 use oci::version::client_version;
 
 fn main() {
   // Инициализируем клиентскую библиотеку Oracle
-  let env = Environment::new(CreateMode::default()).expect("Can't create ORACLE environment");
+  let env = Environment::new(InitParams::default()).expect("Can't create ORACLE environment");
 
   // Создаем параметры. Вскоре их можно будет распарсить из строки (jdbc и sql*plus версий)
   let params = ConnectParams {
