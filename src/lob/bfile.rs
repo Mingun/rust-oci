@@ -2,6 +2,7 @@
 use std::io;
 
 use {Connection, Result};
+use error::DbError::NeedData;
 use types::Charset;
 use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode};
 
@@ -52,11 +53,28 @@ pub struct BFileReader<'lob> {
 }
 impl<'lob> io::Read for BFileReader<'lob> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
+    if self.piece == LobPiece::Last {
+      return Ok(0);
+    }
+    // Количество того, сколько читать и сколько было реально прочитано.
+    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
+    let mut readed = 0;
     // Параметр charset игнорируется для бинарных объектов
-    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf);
+    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf, &mut readed);
     self.piece = LobPiece::Next;
 
-    res.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    match res {
+      Ok(_) => {
+        // Чтение закончено, теперь будем постоянно возвращать 0
+        self.piece = LobPiece::Last;
+        Ok(readed as usize)
+      },
+      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Err(NeedData) => Ok(readed as usize),
+      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
+    }
   }
 }
 impl<'lob> Drop for BFileReader<'lob> {

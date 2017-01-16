@@ -2,6 +2,7 @@
 use std::io;
 
 use {Connection, Result};
+use error::DbError::NeedData;
 use types::Charset;
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
@@ -109,14 +110,28 @@ impl<'conn> LobPrivate<'conn> for Blob<'conn> {
 }
 impl<'conn> io::Read for Blob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    // Количество того, сколько читать и сколько было реально прочитано.
+    let mut readed = buf.len() as u64;
     // Параметр charset игнорируется для бинарных объектов
-    self.impl_.read(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    match self.impl_.read(0, LobPiece::One, Charset::Default, buf, &mut readed) {
+      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Ok(_) => Ok(readed as usize),
+      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+    }
   }
 }
 impl<'conn> io::Write for Blob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    // Количество того, сколько писать и сколько было реально записано.
+    let mut writed = buf.len() as u64;
     // Параметр charset игнорируется для бинарных объектов
-    self.impl_.write(0, LobPiece::One, Charset::Default, buf).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    match self.impl_.write(0, LobPiece::One, Charset::Default, buf, &mut writed) {
+      // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Ok(_) => Ok(writed as usize),
+      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+    }
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
@@ -172,11 +187,27 @@ pub struct BlobReader<'lob> {
 }
 impl<'lob> io::Read for BlobReader<'lob> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
+    if self.piece == LobPiece::Last {
+      return Ok(0);
+    }
+    // Количество того, сколько читать и сколько было реально прочитано.
+    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
+    let mut readed = 0;
     // Параметр charset игнорируется для бинарных объектов
-    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf);
+    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf, &mut readed);
     self.piece = LobPiece::Next;
 
-    res.map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    match res {
+      Ok(_) => {
+        // Чтение закончено, теперь будем постоянно возвращать 0
+        self.piece = LobPiece::Last;
+        Ok(readed as usize)
+      },
+      // Порция данных прочитана, есть еще
+      Err(NeedData) => Ok(readed as usize),
+      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
+    }
   }
 }
 impl<'lob> Drop for BlobReader<'lob> {

@@ -192,18 +192,14 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8]) -> DbResult<usize> {
-    // Количество того, сколько читать и сколько было реально прочитано.
-    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
-    // Однако в случае чтения за один раз необходипо передать количество байт/символов для чтения
-    let mut readed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
+  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobRead2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
         self.locator as *mut c_void,
         // Всегда задаем чтение в байтах, даже для [N]CLOB-ов
-        &mut readed, ptr::null_mut(),
+        readed, ptr::null_mut(),
         // У оракла нумерация с 1, у нас традиционная, с 0
         offset + 1,
         buf.as_mut_ptr() as *mut c_void, buf.len() as u64,
@@ -214,23 +210,16 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       )
     };
 
-    match self.conn.error().check(res) {
-      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
-      // не превышает usize.
-      Ok(_) | Err(NeedData) => Ok(readed as usize),
-      e => e.map(|_| readed as usize),
-    }
+    self.conn.error().check(res)
   }
-  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
-    // Количество того, сколько писать и сколько было реально записано
-    let mut writed = buf.len() as u64;
+  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8], writed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobWrite2(
         self.conn.context.native_mut(),
         self.conn.error().native_mut(),
         self.locator as *mut c_void,
         // Всегда задаем запись в байтах, даже для [N]CLOB-ов
-        &mut writed, ptr::null_mut(),
+        writed, ptr::null_mut(),
         // У оракла нумерация с 1, у нас традиционная, с 0
         // Имеет значение только при первом вызове, при последующих игнорируется
         offset + 1,
@@ -243,12 +232,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       )
     };
 
-    match self.conn.error().check(res) {
-      // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
-      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Ok(_) | Err(NeedData) => Ok(writed as usize),
-      e => e.map(|_| writed as usize),
-    }
+    self.conn.error().check(res)
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
   pub fn append(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
