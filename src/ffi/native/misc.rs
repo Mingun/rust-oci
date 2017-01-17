@@ -9,7 +9,7 @@ use DbResult;
 use version::Version;
 
 use ffi::Handle;// Основные типобезопасные примитивы
-use ffi::VersionHandle;// Типажи для безопасного моста к FFI
+use ffi::{VersionHandle, InterruptHandle};// Типажи для безопасного моста к FFI
 
 use ffi::native::OCIError;// FFI типы
 
@@ -74,11 +74,63 @@ fn to_version(v: c_uint) -> Version {
     port_update: (v    & 0x000000FF) as i32,
   }
 }
+/// Позволяет отменить слишком долго выполняющийся запрос к серверу. Также требуется вызывать для прекращения чтения LOB-а.
+///
+/// # Параметры
+/// - hndl:
+///   Хендл, из которого можно получить версию сервера.
+/// - err:
+///   Хендл для сбора ошибок, из которого будут извлечены подробности ошибки в случае, если она произойдет.
+///
+/// # OCI вызовы
+/// Функция вызывает [`OCIBreak()`][1] для прекращения ожидания асинхронной операции или операции чтения по частям (piecewice).
+///
+/// # Запросы к серверу (1)
+/// Функция выполняет один запрос к серверу при каждом вызове.
+///
+/// [1]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17285
+pub fn break_<T: InterruptHandle>(hndl: &Handle<T>, err: &Handle<OCIError>) -> DbResult<()> {
+  let res = unsafe {
+    OCIBreak(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut()
+    )
+  };
+  err.check(res)
+}
+/// Восстанавливает прерванную асинхронную операцию и протокол. Должна вызываться только в неблокирующем режиме и только после того,
+/// как был вызван [`break_()`][].
+///
+/// # Параметры
+/// - hndl:
+///   Хендл, из которого можно получить версию сервера.
+/// - err:
+///   Хендл для сбора ошибок, из которого будут извлечены подробности ошибки в случае, если она произойдет.
+///
+/// # OCI вызовы
+/// Функция вызывает [`OCIReset()`][2] для прекращения ожидания асинхронной операции или операции чтения по частям (piecewice).
+///
+/// # Запросы к серверу (0)
+/// Функция не выполняет запросов к серверу.
+///
+/// [1]: #function.break_
+/// [2]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17291
+pub fn reset<T: InterruptHandle>(hndl: &Handle<T>, err: &Handle<OCIError>) -> DbResult<()> {
+  let res = unsafe {
+    OCIReset(
+      hndl.native_mut() as *mut c_void,
+      err.native_mut()
+    )
+  };
+  err.check(res)
+}
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
 #[cfg_attr(not(windows), link(name = "clntsh"))]
 extern "C" {
   /// Returns an error message in the buffer provided and an Oracle Database error code.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17287
   pub fn OCIErrorGet(hndlp: *mut c_void,
                      recordno: c_uint,
                      sqlstate: *mut c_uchar,// устарел с версии 8.x
@@ -87,42 +139,34 @@ extern "C" {
                      bufsiz: c_uint,
                      htype: c_uint) -> c_int;
 
+  /// Returns the 5 digit Oracle Database version number of the client library at run time.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17286
   fn OCIClientVersion(major_version: *mut c_int,
                       minor_version: *mut c_int,
                       update_num: *mut c_int,
                       patch_num: *mut c_int,
                       port_update_num: *mut c_int);
   /// Returns the Oracle Database release string.
-  /// 
-  /// # Parameters
-  /// - hndlp (IN):
-  ///   The service context handle or the server context handle.
-  /// - errhp (IN/OUT):
-  ///   An error handle that you can pass to `OCIErrorGet()` for diagnostic information when there is an error.
-  /// - bufp (IN/OUT):
-  ///   The buffer in which the release string is returned.
-  /// - bufsz (IN):
-  ///   The length of the buffer in number of bytes.
-  /// - hndltype (IN):
-  ///   The type of handle passed to the function.
-  /// - version (IN/OUT):
-  ///   The release string in integer format.
-  /// 
-  /// # Comments
-  /// The buffer pointer `bufp` points to the release information in a string representation up to the `bufsz` including the `NULL` terminator.
-  /// If the buffer size is too small, the result is truncated to the size `bufsz`. The version argument contains the 5-digit Oracle Database
-  /// release string in integer format, which can be retrieved using the following macros:
-  /// ```c,no_run
-  /// #define MAJOR_NUMVSN(v) ((sword)(((v) >> 24) & 0x000000FF))      /* version number */ 
-  /// #define MINOR_NUMRLS(v) ((sword)(((v) >> 20) & 0x0000000F))      /* release number */
-  /// #define UPDATE_NUMUPD(v) ((sword)(((v) >> 12) & 0x000000FF))     /* update number */ 
-  /// #define PORT_REL_NUMPRL(v) ((sword)(((v) >> 8) & 0x0000000F))    /* port release number */ 
-  /// #define PORT_UPDATE_NUMPUP(v) ((sword)(((v) >> 0) & 0x000000FF)) /* port update number */
-  /// ```
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17293
   fn OCIServerRelease(hndlp: *mut c_void,
                       errhp: *mut OCIError,
                       bufp: *mut c_uchar,
                       bufsz: c_uint,
                       hndltype: c_uchar,
                       version: *mut c_uint) -> c_int;
+
+  /// Performs an immediate (asynchronous) termination of any currently executing OCI function that is associated with a server.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17285
+  fn OCIBreak(hndlp: *mut c_void,
+              errhp: *mut OCIError) -> c_int;
+
+  /// Resets the interrupted asynchronous operation and protocol. Must be called if an `OCIBreak()` call was issued while a
+  /// nonblocking operation was in progress.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17291
+  fn OCIReset(hndlp: *mut c_void,
+              errhp: *mut OCIError) -> c_int;
 }

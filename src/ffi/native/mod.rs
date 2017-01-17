@@ -21,7 +21,7 @@ pub mod num;
 pub mod time;
 
 use ffi::{HandleType, DescriptorType};// признаки хендла/дескриптора
-use ffi::{ErrorHandle, VersionHandle, AttrHandle, ParamHandle};// Дополнительные свойства хендлов/дескрипторов
+use ffi::{ErrorHandle, VersionHandle, AttrHandle, ParamHandle, InterruptHandle};// Дополнительные свойства хендлов/дескрипторов
 use ffi::types::Handle;
 use ffi::types::Descriptor;
 
@@ -39,8 +39,10 @@ impl ErrorHandle for OCIEnv { const ID: Handle = Handle::Env; }
 impl ErrorHandle for OCIError { const ID: Handle = Handle::Error; }
 #[derive(Debug)] pub enum OCIServer {}   impl HandleType for OCIServer   { const ID: Handle = Handle::Server; }
 impl VersionHandle for OCIServer {}
+impl InterruptHandle for OCIServer {}
 #[derive(Debug)] pub enum OCISvcCtx {}   impl HandleType for OCISvcCtx   { const ID: Handle = Handle::SvcCtx; }
 impl VersionHandle for OCISvcCtx {}
+impl InterruptHandle for OCISvcCtx {}
 #[derive(Debug)] pub enum OCISession {}  impl HandleType for OCISession  { const ID: Handle = Handle::Session; }
 #[derive(Debug)] pub enum OCIStmt {}
 impl AttrHandle  for OCIStmt { const ID: Handle = Handle::Stmt; }

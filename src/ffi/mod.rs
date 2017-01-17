@@ -80,6 +80,13 @@ pub trait ParamHandle {
 /// [id]: ./trait.HandleType.html#associatedconstant.ID
 pub trait VersionHandle : HandleType {}
 
+/// Тип, реализующий данный типаж, может быть передан в функции [`OCIBreak`][1]/[`OCIReset`][2] для прекращения
+/// выполнения асинхронной операции и восстановления состояния после такого прекращения соответственно.
+///
+/// [1]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17285
+/// [2]: http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17291
+pub trait InterruptHandle : HandleType {}
+
 //-------------------------------------------------------------------------------------------------
 /// Транслирует результат, возвращенный любой функцией, в код ошибки базы данных
 ///

@@ -14,6 +14,7 @@ use ffi::DescriptorType;// Типажи для безопасного моста
 
 use ffi::types;
 use ffi::native::{OCIEnv, OCIError, OCISvcCtx};// FFI типы
+use ffi::native::misc::{break_, reset};// FFI функции
 
 pub trait OCILobLocator : DescriptorType {}
 descriptor!(OCILobLocator, Lob);
@@ -335,6 +336,12 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     try!(env.error().check(res));
 
     Ok(flag != 0)
+  }
+  pub fn break_(&mut self) -> DbResult<()> {
+    break_(&self.conn.context, self.conn.error())
+  }
+  pub fn reset(&mut self) -> DbResult<()> {
+    reset(&self.conn.context, self.conn.error())
   }
 }
 impl<'conn> LobImpl<'conn, Lob> {
