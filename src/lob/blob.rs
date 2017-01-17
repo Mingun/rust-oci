@@ -82,7 +82,7 @@ impl<'conn> Blob<'conn> {
 
   /// Создает читателя данного бинарного объекта. Каждый вызов метода `read` читателя читает очередную порцию данных.
   #[inline]
-  pub fn new_reader(&'conn mut self) -> Result<BlobReader<'conn>> {
+  pub fn new_reader<'lob>(&'lob mut self) -> Result<BlobReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
     Ok(BlobReader { lob: self, piece: LobPiece::First })
   }
@@ -94,7 +94,7 @@ impl<'conn> Blob<'conn> {
   /// В пределах одной транзакции один BLOB может быть открыт только единожды, независимо от того, сколько
   /// локаторов (которые представляет данный класс) на него существует.
   #[inline]
-  pub fn new_writer(&'conn mut self) -> Result<BlobWriter<'conn>> {
+  pub fn new_writer<'lob>(&'lob mut self) -> Result<BlobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
     Ok(BlobWriter { lob: self, piece: LobPiece::First })
   }
@@ -148,11 +148,17 @@ impl<'conn> io::Write for Blob<'conn> {
 /// Позволяет писать в большой бинарный объект, не вызывая пересчета индексов после каждой записи.
 /// Индексы будут пересчитаны только после уничтожения данного объекта.
 #[derive(Debug)]
-pub struct BlobWriter<'lob> {
-  lob: &'lob mut Blob<'lob>,
+pub struct BlobWriter<'lob, 'conn: 'lob> {
+  lob: &'lob mut Blob<'conn>,
   piece: LobPiece,
 }
-impl<'lob> BlobWriter<'lob> {
+impl<'lob, 'conn: 'lob> BlobWriter<'lob, 'conn> {
+  /// Получает `BLOB`, записываемый данным писателем.
+  pub fn lob(&mut self) -> &mut Blob<'conn> {
+    self.lob
+  }
+}
+impl<'lob, 'conn: 'lob> BlobWriter<'lob, 'conn> {
   /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
   /// возвращена ошибка (таким образом, данную функцию нельзя использовать для увеличения размера LOB).
   ///
@@ -174,7 +180,7 @@ impl<'lob> BlobWriter<'lob> {
     self.lob.erase(offset, count)
   }
 }
-impl<'lob> io::Write for BlobWriter<'lob> {
+impl<'lob, 'conn: 'lob> io::Write for BlobWriter<'lob, 'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
     let (res, piece) = self.lob.impl_.write(self.piece, Charset::Default, buf);
@@ -185,7 +191,7 @@ impl<'lob> io::Write for BlobWriter<'lob> {
     Ok(())
   }
 }
-impl<'lob> Drop for BlobWriter<'lob> {
+impl<'lob, 'conn: 'lob> Drop for BlobWriter<'lob, 'conn> {
   fn drop(&mut self) {
     // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
     let _ = self.lob.close(self.piece);//.expect("Error when close BLOB writer");
@@ -195,11 +201,17 @@ impl<'lob> Drop for BlobWriter<'lob> {
 //-------------------------------------------------------------------------------------------------
 /// Позволяет читать из большой бинарного объекта в потоковом режиме. Каждый вызов `read` читает очередную порцию данных.
 #[derive(Debug)]
-pub struct BlobReader<'lob> {
-  lob: &'lob mut Blob<'lob>,
+pub struct BlobReader<'lob, 'conn: 'lob> {
+  lob: &'lob mut Blob<'conn>,
   piece: LobPiece,
 }
-impl<'lob> io::Read for BlobReader<'lob> {
+impl<'lob, 'conn: 'lob> BlobReader<'lob, 'conn> {
+  /// Получает `BLOB`, читаемый данным читателем.
+  pub fn lob(&mut self) -> &mut Blob<'conn> {
+    self.lob
+  }
+}
+impl<'lob, 'conn: 'lob> io::Read for BlobReader<'lob, 'conn> {
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
@@ -208,7 +220,7 @@ impl<'lob> io::Read for BlobReader<'lob> {
     res
   }
 }
-impl<'lob> Drop for BlobReader<'lob> {
+impl<'lob, 'conn: 'lob> Drop for BlobReader<'lob, 'conn> {
   fn drop(&mut self) {
     // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
     let _ = self.lob.close(self.piece);//.expect("Error when close BLOB reader");

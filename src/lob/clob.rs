@@ -86,7 +86,7 @@ impl<'conn> Clob<'conn> {
   /// В пределах одной транзакции один BLOB может быть открыт только единожды, независимо от того, сколько
   /// локаторов (которые представляет данный класс) на него существует.
   #[inline]
-  pub fn new_writer(&'conn mut self) -> Result<ClobWriter<'conn>> {
+  pub fn new_writer<'lob>(&'lob mut self) -> Result<ClobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
     Ok(ClobWriter { lob: self, piece: LobPiece::First })
   }
@@ -111,11 +111,15 @@ impl<'conn> LobPrivate<'conn> for Clob<'conn> {
 /// Позволяет писать в большой символьный объект, не вызывая пересчета индексов после каждой записи.
 /// Индексы будут пересчитаны только после уничтожения данного объекта.
 #[derive(Debug)]
-pub struct ClobWriter<'lob> {
-  lob: &'lob mut Clob<'lob>,
+pub struct ClobWriter<'lob, 'conn: 'lob> {
+  lob: &'lob mut Clob<'conn>,
   piece: LobPiece,
 }
-impl<'lob> ClobWriter<'lob> {
+impl<'lob, 'conn: 'lob> ClobWriter<'lob, 'conn> {
+  /// Получает `CLOB`, записываемый данным писателем.
+  pub fn lob(&mut self) -> &mut Clob<'conn> {
+    self.lob
+  }
   /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
   /// возвращена ошибка (таким образом, данную функцию нельзя использовать для увеличения размера LOB).
   ///
@@ -137,7 +141,7 @@ impl<'lob> ClobWriter<'lob> {
     self.lob.erase(offset, count)
   }
 }
-impl<'lob> Drop for ClobWriter<'lob> {
+impl<'lob, 'conn: 'lob> Drop for ClobWriter<'lob, 'conn> {
   fn drop(&mut self) {
     // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
     let _ = self.lob.close(self.piece);//.expect("Error when close CLOB writer");

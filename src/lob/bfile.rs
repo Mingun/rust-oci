@@ -30,9 +30,13 @@ impl<'conn> BFile<'conn> {
   /// Создает читателя данного файлового бинарного объекта. В отличие от BLOB-ов, файловые объект должны
   /// быть явно открыты, чтобы выполнять из них чтение.
   #[inline]
-  pub fn new_reader(&'conn mut self) -> Result<BFileReader<'conn>> {
+  pub fn new_reader<'lob: 'conn>(&'lob mut self) -> Result<BFileReader<'lob, 'conn>> {
+    self.open(LobPiece::First)
+  }
+  #[inline]
+  fn open<'lob>(&'lob mut self, piece: LobPiece) -> Result<BFileReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
-    Ok(BFileReader { lob: self, piece: LobPiece::First })
+    Ok(BFileReader { lob: self, piece: piece })
   }
   fn close(&mut self, piece: LobPiece) -> DbResult<()> {
     // Если LOB был прочитан не полностью, то отменяем запросы на чтение и восстанавливаемся
@@ -52,14 +56,29 @@ impl<'conn> LobPrivate<'conn> for BFile<'conn> {
   }
 }
 
+impl<'lob> io::Read for BFile<'lob> {
+  #[inline]
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    match self.open(LobPiece::One) {
+      Ok(mut r) => r.read(buf),
+      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
+    }
+  }
+}
 //-------------------------------------------------------------------------------------------------
 /// Позволяет читать из файлового объекта. При уничтожении закрывает файловый объект.
 #[derive(Debug)]
-pub struct BFileReader<'lob> {
-  lob: &'lob mut BFile<'lob>,
+pub struct BFileReader<'lob, 'conn: 'lob> {
+  lob: &'lob mut BFile<'conn>,
   piece: LobPiece,
 }
-impl<'lob> io::Read for BFileReader<'lob> {
+impl<'lob, 'conn: 'lob> BFileReader<'lob, 'conn> {
+  /// Получает `BFILE`, читаемый данным читателем.
+  pub fn lob(&mut self) -> &mut BFile<'conn> {
+    self.lob
+  }
+}
+impl<'lob, 'conn: 'lob> io::Read for BFileReader<'lob, 'conn> {
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Параметр charset игнорируется для бинарных объектов
@@ -68,7 +87,7 @@ impl<'lob> io::Read for BFileReader<'lob> {
     res
   }
 }
-impl<'lob> Drop for BFileReader<'lob> {
+impl<'lob, 'conn: 'lob> Drop for BFileReader<'lob, 'conn> {
   fn drop(&mut self) {
     // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
     let _ = self.lob.close(self.piece);//.expect("Error when close BFILE reader");
