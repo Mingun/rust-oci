@@ -1,7 +1,6 @@
 //! Содержит типы для работы с большими символьными объектами.
-use std::io;
 
-use {Connection, Result};
+use {Connection, Result, DbResult};
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
 use super::{Bytes, Chars, LobPrivate};
@@ -89,7 +88,15 @@ impl<'conn> Clob<'conn> {
   #[inline]
   pub fn new_writer(&'conn mut self) -> Result<ClobWriter<'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
-    Ok(ClobWriter { lob: self })
+    Ok(ClobWriter { lob: self, piece: LobPiece::First })
+  }
+  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+    // Если LOB был прочитан/записан не полностью, то отменяем запросы на чтение/запись и восстанавливаемся
+    if piece != LobPiece::Last {
+      try!(self.impl_.break_());
+      try!(self.impl_.reset());
+    }
+    self.impl_.close()
   }
 }
 impl<'conn> LobPrivate<'conn> for Clob<'conn> {
@@ -103,8 +110,10 @@ impl<'conn> LobPrivate<'conn> for Clob<'conn> {
 //-------------------------------------------------------------------------------------------------
 /// Позволяет писать в большой символьный объект, не вызывая пересчета индексов после каждой записи.
 /// Индексы будут пересчитаны только после уничтожения данного объекта.
+#[derive(Debug)]
 pub struct ClobWriter<'lob> {
   lob: &'lob mut Clob<'lob>,
+  piece: LobPiece,
 }
 impl<'lob> ClobWriter<'lob> {
   /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
@@ -130,6 +139,7 @@ impl<'lob> ClobWriter<'lob> {
 }
 impl<'lob> Drop for ClobWriter<'lob> {
   fn drop(&mut self) {
-    self.lob.impl_.close().expect("Error when close LOB");
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.lob.close(self.piece);//.expect("Error when close CLOB writer");
   }
 }

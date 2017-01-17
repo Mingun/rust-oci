@@ -1,8 +1,7 @@
 //! Содержит типы для работы с большими бинарными объектами.
 use std::io;
 
-use {Connection, Result};
-use error::DbError::NeedData;
+use {Connection, Result, DbResult};
 use types::Charset;
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
@@ -97,7 +96,15 @@ impl<'conn> Blob<'conn> {
   #[inline]
   pub fn new_writer(&'conn mut self) -> Result<BlobWriter<'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
-    Ok(BlobWriter { lob: self })
+    Ok(BlobWriter { lob: self, piece: LobPiece::First })
+  }
+  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+    // Если LOB был прочитан/записан не полностью, то отменяем запросы на чтение/запись и восстанавливаемся
+    if piece != LobPiece::Last {
+      try!(self.impl_.break_());
+      try!(self.impl_.reset());
+    }
+    self.impl_.close()
   }
 }
 impl<'conn> LobPrivate<'conn> for Blob<'conn> {
@@ -113,7 +120,7 @@ impl<'conn> io::Read for Blob<'conn> {
     // Количество того, сколько читать и сколько было реально прочитано.
     let mut readed = buf.len() as u64;
     // Параметр charset игнорируется для бинарных объектов
-    match self.impl_.read(0, LobPiece::One, Charset::Default, buf, &mut readed) {
+    match self.impl_.read_impl(0, LobPiece::One, Charset::Default, buf, &mut readed) {
       // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Ok(_) => Ok(readed as usize),
@@ -126,7 +133,7 @@ impl<'conn> io::Write for Blob<'conn> {
     // Количество того, сколько писать и сколько было реально записано.
     let mut writed = buf.len() as u64;
     // Параметр charset игнорируется для бинарных объектов
-    match self.impl_.write(0, LobPiece::One, Charset::Default, buf, &mut writed) {
+    match self.impl_.write_impl(0, LobPiece::One, Charset::Default, buf, &mut writed) {
       // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Ok(_) => Ok(writed as usize),
@@ -140,8 +147,10 @@ impl<'conn> io::Write for Blob<'conn> {
 //-------------------------------------------------------------------------------------------------
 /// Позволяет писать в большой бинарный объект, не вызывая пересчета индексов после каждой записи.
 /// Индексы будут пересчитаны только после уничтожения данного объекта.
+#[derive(Debug)]
 pub struct BlobWriter<'lob> {
   lob: &'lob mut Blob<'lob>,
+  piece: LobPiece,
 }
 impl<'lob> BlobWriter<'lob> {
   /// Укорачивает данный объект до указанной длины. В случае, если новая длина больше предыдущей, будет
@@ -167,7 +176,10 @@ impl<'lob> BlobWriter<'lob> {
 }
 impl<'lob> io::Write for BlobWriter<'lob> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.lob.write(buf)
+    // Параметр charset игнорируется для бинарных объектов
+    let (res, piece) = self.lob.impl_.write(self.piece, Charset::Default, buf);
+    self.piece = piece;
+    res
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
@@ -175,43 +187,30 @@ impl<'lob> io::Write for BlobWriter<'lob> {
 }
 impl<'lob> Drop for BlobWriter<'lob> {
   fn drop(&mut self) {
-    self.lob.impl_.close().expect("Error when close BLOB writer");
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.lob.close(self.piece);//.expect("Error when close BLOB writer");
   }
 }
 
 //-------------------------------------------------------------------------------------------------
 /// Позволяет читать из большой бинарного объекта в потоковом режиме. Каждый вызов `read` читает очередную порцию данных.
+#[derive(Debug)]
 pub struct BlobReader<'lob> {
   lob: &'lob mut Blob<'lob>,
   piece: LobPiece,
 }
 impl<'lob> io::Read for BlobReader<'lob> {
+  #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
-    if self.piece == LobPiece::Last {
-      return Ok(0);
-    }
-    // Количество того, сколько читать и сколько было реально прочитано.
-    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
-    let mut readed = 0;
     // Параметр charset игнорируется для бинарных объектов
-    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf, &mut readed);
-    self.piece = LobPiece::Next;
-
-    match res {
-      Ok(_) => {
-        // Чтение закончено, теперь будем постоянно возвращать 0
-        self.piece = LobPiece::Last;
-        Ok(readed as usize)
-      },
-      // Порция данных прочитана, есть еще
-      Err(NeedData) => Ok(readed as usize),
-      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
-    }
+    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, buf);
+    self.piece = piece;
+    res
   }
 }
 impl<'lob> Drop for BlobReader<'lob> {
   fn drop(&mut self) {
-    self.lob.impl_.close().expect("Error when close BLOB reader");
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.lob.close(self.piece);//.expect("Error when close BLOB reader");
   }
 }

@@ -1,8 +1,7 @@
 //! Содержит типы для работы с файловыми бинарными объектами.
 use std::io;
 
-use {Connection, Result};
-use error::DbError::NeedData;
+use {Connection, Result, DbResult};
 use types::Charset;
 use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode};
 
@@ -35,6 +34,14 @@ impl<'conn> BFile<'conn> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
     Ok(BFileReader { lob: self, piece: LobPiece::First })
   }
+  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+    // Если LOB был прочитан не полностью, то отменяем запросы на чтение и восстанавливаемся
+    if piece != LobPiece::Last {
+      try!(self.impl_.break_());
+      try!(self.impl_.reset());
+    }
+    self.impl_.close()
+  }
 }
 impl<'conn> LobPrivate<'conn> for BFile<'conn> {
   fn new(raw: &[u8], conn: &'conn Connection) -> Self {
@@ -47,38 +54,23 @@ impl<'conn> LobPrivate<'conn> for BFile<'conn> {
 
 //-------------------------------------------------------------------------------------------------
 /// Позволяет читать из файлового объекта. При уничтожении закрывает файловый объект.
+#[derive(Debug)]
 pub struct BFileReader<'lob> {
   lob: &'lob mut BFile<'lob>,
   piece: LobPiece,
 }
 impl<'lob> io::Read for BFileReader<'lob> {
+  #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
-    if self.piece == LobPiece::Last {
-      return Ok(0);
-    }
-    // Количество того, сколько читать и сколько было реально прочитано.
-    // В случае потокового чтения можно передать 0, это значит, что мы собираемся прочитать LOB до конца.
-    let mut readed = 0;
     // Параметр charset игнорируется для бинарных объектов
-    let res = self.lob.impl_.read(0, self.piece, Charset::Default, buf, &mut readed);
-    self.piece = LobPiece::Next;
-
-    match res {
-      Ok(_) => {
-        // Чтение закончено, теперь будем постоянно возвращать 0
-        self.piece = LobPiece::Last;
-        Ok(readed as usize)
-      },
-      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
-      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Err(NeedData) => Ok(readed as usize),
-      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e))
-    }
+    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, buf);
+    self.piece = piece;
+    res
   }
 }
 impl<'lob> Drop for BFileReader<'lob> {
   fn drop(&mut self) {
-    self.lob.impl_.close().expect("Error when close LOB");
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.lob.close(self.piece);//.expect("Error when close BFILE reader");
   }
 }

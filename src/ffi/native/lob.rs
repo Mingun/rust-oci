@@ -3,6 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/lob-functions.htm#LNOCI162
 
+use std::io;
 use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ulonglong, c_ushort};
 use std::ptr;
 
@@ -193,7 +194,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  pub fn read(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
+  pub fn read_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobRead2(
         self.conn.context.native_mut(),
@@ -213,7 +214,24 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
 
     self.conn.error().check(res)
   }
-  pub fn write(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8], writed: &mut u64) -> DbResult<()> {
+  pub fn read(&mut self, piece: LobPiece, charset: Charset, buf: &mut [u8]) -> (io::Result<usize>, LobPiece) {
+    // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
+    if piece == LobPiece::Last {
+      return (Ok(0), piece);
+    }
+    let mut readed = 0;
+    match self.read_impl(0, piece, charset, buf, &mut readed) {
+      Ok(_) => {
+        // Чтение закончено, теперь будем постоянно возвращать 0
+        (Ok(readed as usize), LobPiece::Last)
+      },
+      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Err(NeedData) => (Ok(readed as usize), LobPiece::Next),
+      Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
+    }
+  }
+  pub fn write_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8], writed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobWrite2(
         self.conn.context.native_mut(),
@@ -234,6 +252,23 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
 
     self.conn.error().check(res)
+  }
+  pub fn write(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> (io::Result<usize>, LobPiece) {
+    // Если в прошлый раз при записи был достигнут конец потока, возвращаем 0
+    if piece == LobPiece::Last {
+      return (Ok(0), piece);
+    }
+    let mut writed = 0;
+    match self.write_impl(0, piece, charset, buf, &mut writed) {
+      Ok(_) => {
+        // Чтение закончено, теперь будем постоянно возвращать 0
+        (Ok(writed as usize), LobPiece::Last)
+      },
+      // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
+      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
+      Err(NeedData) => (Ok(writed as usize), LobPiece::Next),
+      Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
+    }
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
   pub fn append(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
