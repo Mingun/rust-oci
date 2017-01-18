@@ -281,7 +281,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// ```
   /// # use oci::Environment;
   /// # use oci::params::{ConnectParams, Credentials};
-  /// # let env = Environment::new(Default::default()).unwrap();
+  /// # let env = Environment::default();
   /// # let conn = env.connect(ConnectParams { dblink: "".into(), attach_mode: Default::default(), credentials: Credentials::Ext, auth_mode: Default::default() }).unwrap();
   /// let mut stmt = conn.prepare("select * from user_users").unwrap();
   /// {
