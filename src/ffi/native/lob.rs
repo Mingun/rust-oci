@@ -394,6 +394,22 @@ impl<'conn> LobImpl<'conn, Lob> {
 
     Ok(size)
   }
+  /// Получает кодировку базы данных для данного большого символьного объекта.
+  pub fn charset(&self) -> DbResult<Charset> {
+    let env = self.conn.get_env();
+    let mut charset = Charset::Default;
+    let res = unsafe {
+      OCILobCharSetId(
+        env.native() as *mut OCIEnv,
+        self.conn.error().native_mut(),
+        self.locator as *const c_void,
+        &mut charset as *mut Charset as *mut u16
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(charset)
+  }
 }
 impl<'conn> LobImpl<'conn, File> {
   pub fn set_filename(&mut self, directory: &str, filename: &str) -> DbResult<()> {
@@ -402,6 +418,7 @@ impl<'conn> LobImpl<'conn, File> {
         ptr::null_mut(),//self.conn.server.env.env.native as *mut OCIEnv,
         self.conn.error().native_mut(),
         &mut self.locator as *mut *mut File as *mut *mut c_void,
+        //FIXME: Данные строки могут быть в UTF-16, если при вызове OCIEnvNlsCreate() использовалась она
         // Длина срезов возвращается, как и положено, в байтах
         directory.as_ptr() as *const c_char, directory.len() as u16,
         filename.as_ptr()  as *const c_char, filename.len()  as u16
@@ -1159,4 +1176,13 @@ extern "C" {
                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                       filep: *mut c_void/*OCILobLocator*/,
                       flag: *mut c_int) -> c_int;
+//-------------------------------------------------------------------------------------------------
+// Доступно только для CLOB/NCLOB
+//-------------------------------------------------------------------------------------------------
+  /// Gets the LOB locator's database character set ID of the LOB locator, if any.
+  fn OCILobCharSetId(envhp: *mut OCIEnv,
+                     errhp: *mut OCIError,
+                     // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                     locp: *const c_void/*OCILobLocator*/,
+                     csid: *mut u16) ->c_int;
 }

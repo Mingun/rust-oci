@@ -1,6 +1,7 @@
 //! Содержит типы для работы с большими символьными объектами.
 
 use {Connection, Result, DbResult};
+use types::Charset;
 use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
 
 use super::{Bytes, Chars, LobPrivate};
@@ -89,6 +90,11 @@ impl<'conn> Clob<'conn> {
   pub fn new_writer<'lob>(&'lob mut self) -> Result<ClobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
     Ok(ClobWriter { lob: self, piece: LobPiece::First })
+  }
+  /// Получает кодировку базы данных для данного большого символьного объекта.
+  #[inline]
+  pub fn charset(&self) -> Result<Charset> {
+    self.impl_.charset().map_err(Into::into)
   }
   fn close(&mut self, piece: LobPiece) -> DbResult<()> {
     // Если LOB был прочитан/записан не полностью, то отменяем запросы на чтение/запись и восстанавливаемся
