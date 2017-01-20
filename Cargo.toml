@@ -8,6 +8,7 @@ description = "A binding to Oracle Call Interface (OCI) native library"
 repository = "https://github.com/Mingun/rust-oci"
 readme = "README.md"
 keywords = ["binding", "database", "oracle", "oci", "sql"]
+categories = ["database", "api-bindings", "external-ffi-bindings"]
 
 [dependencies]
 num-integer = "*"
@@ -16,3 +17,6 @@ chrono = { version = "0.2", optional = true }
 
 [features]
 with-chrono = ["chrono"]
+
+[badges]
+travis-ci = { repository = "Mingun/rust-oci" }
