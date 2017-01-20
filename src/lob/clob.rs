@@ -1,4 +1,5 @@
 //! Содержит типы для работы с большими символьными объектами.
+use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
@@ -81,6 +82,23 @@ impl<'conn> Clob<'conn> {
     self.impl_.erase(offset.0, &mut count.0).map_err(Into::into)
   }
 
+  /// Создает читателя данного символьного объекта. Каждый вызов метода `read` читателя читает очередную порцию данных.
+  /// Данные читаются из CLOB-а в кодировке `UTF-8`.
+  #[inline]
+  pub fn new_reader<'lob>(&'lob mut self) -> Result<ClobReader<'lob, 'conn>> {
+    self.new_reader_with_charset(Charset::AL32UTF8)
+  }
+  /// Создает читателя данного символьного объекта. Каждый вызов метода `read` читателя читает очередную порцию данных.
+  /// Данные читаются из CLOB-а в указанной кодировке.
+  ///
+  /// Каждый вызов `read` будет заполнять массив байтами в запрошенной кодировке. Так как стандартные методы Rust для
+  /// работы читателем байт как читателем текста предполагают, что представлен в UTF-8, то их нельзя использовать для
+  /// данного читателя, т.к. тест будет извлекаться с указанной кодировке.
+  #[inline]
+  pub fn new_reader_with_charset<'lob>(&'lob mut self, charset: Charset) -> Result<ClobReader<'lob, 'conn>> {
+    try!(self.impl_.open(LobOpenMode::ReadOnly));
+    Ok(ClobReader { lob: self, piece: LobPiece::First, charset: charset })
+  }
   /// Создает писателя в данный символьный объект. Преимущество использования писателя вместо прямой записи
   /// в объект в том, что функциональные и доменные индексы базы данных (если они есть) для данного большого
   /// объекта будут обновлены только после уничтожения писателя, а не при каждой записи в объект, что в
@@ -90,8 +108,20 @@ impl<'conn> Clob<'conn> {
   /// локаторов (которые представляет данный класс) на него существует.
   #[inline]
   pub fn new_writer<'lob>(&'lob mut self) -> Result<ClobWriter<'lob, 'conn>> {
+    self.new_writer_with_charset(Charset::AL32UTF8)
+  }
+  /// Создает писателя в данный символьный объект, записывающий текстовые данные, представленные в указанной кодировке.
+  ///
+  /// Преимущество использования писателя вместо прямой записи в объект в том, что функциональные и доменные индексы
+  /// базы данных (если они есть) для данного большого объекта будут обновлены только после уничтожения писателя, а не
+  /// при каждой записи в объект, что в лучшую сторону сказывается на производительности.
+  ///
+  /// В пределах одной транзакции один CLOB может быть открыт только единожды, независимо от того, сколько
+  /// локаторов (которые представляет данный класс) на него существует.
+  #[inline]
+  pub fn new_writer_with_charset<'lob>(&'lob mut self, charset: Charset) -> Result<ClobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
-    Ok(ClobWriter { lob: self, piece: LobPiece::First })
+    Ok(ClobWriter { lob: self, piece: LobPiece::First, charset: charset })
   }
   /// Получает кодировку базы данных для данного большого символьного объекта.
   #[inline]
@@ -124,6 +154,7 @@ impl<'conn> LobPrivate<'conn> for Clob<'conn> {
 pub struct ClobWriter<'lob, 'conn: 'lob> {
   lob: &'lob mut Clob<'conn>,
   piece: LobPiece,
+  charset: Charset,
 }
 impl<'lob, 'conn: 'lob> ClobWriter<'lob, 'conn> {
   /// Получает `CLOB`, записываемый данным писателем.
@@ -151,9 +182,55 @@ impl<'lob, 'conn: 'lob> ClobWriter<'lob, 'conn> {
     self.lob.erase(offset, count)
   }
 }
+impl<'lob, 'conn: 'lob> io::Write for ClobReader<'lob, 'conn> {
+  #[inline]
+  fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    let (res, piece) = self.lob.impl_.write(self.piece, self.charset, self.lob.form, buf);
+    self.piece = piece;
+    match (res, piece) {
+      (Ok(0), LobPiece::Next) => Err(io::ErrorKind::WriteZero.into()),
+      (res, _) => res,
+    }
+  }
+  #[inline]
+  fn flush(&mut self) -> io::Result<()> {
+    Ok(())
+  }
+}
 impl<'lob, 'conn: 'lob> Drop for ClobWriter<'lob, 'conn> {
   fn drop(&mut self) {
     // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
     let _ = self.lob.close(self.piece);//.expect("Error when close CLOB writer");
+  }
+}
+//-------------------------------------------------------------------------------------------------
+/// Позволяет читать из большой бинарного объекта в потоковом режиме. Каждый вызов `read` читает очередную порцию данных.
+#[derive(Debug)]
+pub struct ClobReader<'lob, 'conn: 'lob> {
+  lob: &'lob mut Clob<'conn>,
+  piece: LobPiece,
+  charset: Charset,
+}
+impl<'lob, 'conn: 'lob> ClobReader<'lob, 'conn> {
+  /// Получает `CLOB`, читаемый данным читателем.
+  pub fn lob(&mut self) -> &mut Clob<'conn> {
+    self.lob
+  }
+}
+impl<'lob, 'conn: 'lob> io::Read for ClobReader<'lob, 'conn> {
+  #[inline]
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    let (res, piece) = self.lob.impl_.read(self.piece, self.charset, self.lob.form, buf);
+    self.piece = piece;
+    match (res, piece) {
+      (Ok(0), LobPiece::Next) => Err(io::ErrorKind::UnexpectedEof.into()),
+      (res, _) => res,
+    }
+  }
+}
+impl<'lob, 'conn: 'lob> Drop for ClobReader<'lob, 'conn> {
+  fn drop(&mut self) {
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.lob.close(self.piece);//.expect("Error when close CLOB reader");
   }
 }
