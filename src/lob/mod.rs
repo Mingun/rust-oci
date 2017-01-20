@@ -21,13 +21,13 @@ pub struct Bytes(pub u64);
 pub struct Chars(pub u64);
 
 trait LobPrivate<'a> : Sized + 'a {
-  fn new(raw: &[u8], conn: &'a Connection) -> Self;
+  fn new(raw: &[u8], conn: &'a Connection) -> Result<Self>;
 }
 
 impl<'conn> FromDB<'conn> for Blob<'conn> {
   fn from_db(ty: Type, raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     match ty {
-      Type::BLOB => Ok(Blob::new(raw, conn)),
+      Type::BLOB => Blob::new(raw, conn),
       t => Err(Error::Conversion(t)),
     }
   }
@@ -35,7 +35,7 @@ impl<'conn> FromDB<'conn> for Blob<'conn> {
 impl<'conn> FromDB<'conn> for Clob<'conn> {
   fn from_db(ty: Type, raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     match ty {
-      Type::CLOB => Ok(Clob::new(raw, conn)),
+      Type::CLOB => Clob::new(raw, conn),
       t => Err(Error::Conversion(t)),
     }
   }
@@ -43,7 +43,7 @@ impl<'conn> FromDB<'conn> for Clob<'conn> {
 impl<'conn> FromDB<'conn> for BFile<'conn> {
   fn from_db(ty: Type, raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     match ty {
-      Type::BFILEE => Ok(BFile::new(raw, conn)),
+      Type::BFILEE => BFile::new(raw, conn),
       t => Err(Error::Conversion(t)),
     }
   }

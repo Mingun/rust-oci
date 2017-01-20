@@ -35,6 +35,7 @@ pub enum LobPiece {
   Last  = 3,
 }
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
 pub enum CharsetForm {
   /// For `CHAR`, `VARCHAR2`, `CLOB` w/o a specified set.
   Implicit = 1,
@@ -194,7 +195,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  pub fn read_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
+  pub fn read_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobRead2(
         self.conn.context.native_mut(),
@@ -208,19 +209,19 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         piece as u8,
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
-        charset as u16, CharsetForm::Implicit as u8
+        charset as u16, form as u8
       )
     };
 
     self.conn.error().check(res)
   }
-  pub fn read(&mut self, piece: LobPiece, charset: Charset, buf: &mut [u8]) -> (io::Result<usize>, LobPiece) {
+  pub fn read(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &mut [u8]) -> (io::Result<usize>, LobPiece) {
     // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
     if piece == LobPiece::Last {
       return (Ok(0), piece);
     }
     let mut readed = 0;
-    match self.read_impl(0, piece, charset, buf, &mut readed) {
+    match self.read_impl(0, piece, charset, form, buf, &mut readed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
         (Ok(readed as usize), LobPiece::Last)
@@ -231,7 +232,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }
-  pub fn write_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, buf: &[u8], writed: &mut u64) -> DbResult<()> {
+  pub fn write_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8], writed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobWrite2(
         self.conn.context.native_mut(),
@@ -247,19 +248,19 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
         // Данные параметры игнорируются для BLOB-ов.
-        charset as u16, CharsetForm::Implicit as u8
+        charset as u16, form as u8
       )
     };
 
     self.conn.error().check(res)
   }
-  pub fn write(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> (io::Result<usize>, LobPiece) {
+  pub fn write(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8]) -> (io::Result<usize>, LobPiece) {
     // Если в прошлый раз при записи был достигнут конец потока, возвращаем 0
     if piece == LobPiece::Last {
       return (Ok(0), piece);
     }
     let mut writed = 0;
-    match self.write_impl(0, piece, charset, buf, &mut writed) {
+    match self.write_impl(0, piece, charset, form, buf, &mut writed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
         (Ok(writed as usize), LobPiece::Last)
@@ -271,7 +272,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     }
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
-  pub fn append(&mut self, piece: LobPiece, charset: Charset, buf: &[u8]) -> DbResult<usize> {
+  pub fn append(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -286,7 +287,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
         // Функцию обратного вызова не используем
         ptr::null_mut(), None,
         // Данные параметры игнорируются для BLOB-ов.
-        charset as u16, CharsetForm::Implicit as u8
+        charset as u16, form as u8
       )
     };
     try!(self.conn.error().check(res));
@@ -409,6 +410,22 @@ impl<'conn> LobImpl<'conn, Lob> {
     try!(self.conn.error().check(res));
 
     Ok(charset)
+  }
+  /// Получает форму кодировки базы данных для данного большого символьного объекта.
+  pub fn form(&self) -> DbResult<CharsetForm> {
+    let env = self.conn.get_env();
+    let mut form = CharsetForm::Implicit;
+    let res = unsafe {
+      OCILobCharSetForm(
+        env.native() as *mut OCIEnv,
+        self.conn.error().native_mut(),
+        self.locator as *const c_void,
+        &mut form as *mut CharsetForm as *mut u8
+      )
+    };
+    try!(self.conn.error().check(res));
+
+    Ok(form)
   }
 }
 impl<'conn> LobImpl<'conn, File> {
@@ -1185,4 +1202,10 @@ extern "C" {
                      // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                      locp: *const c_void/*OCILobLocator*/,
                      csid: *mut u16) ->c_int;
+  /// Gets the character set form of the LOB locator, if any.
+  fn OCILobCharSetForm(envhp: *mut OCIEnv,
+                       errhp: *mut OCIError,
+                       // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
+                       locp: *const c_void/*OCILobLocator*/,
+                       csfmt: *mut u8) ->c_int;
 }

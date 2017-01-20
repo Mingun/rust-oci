@@ -2,7 +2,7 @@
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
+use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode, CharsetForm};
 
 use super::{Bytes, Chars, LobPrivate};
 
@@ -12,6 +12,8 @@ use super::{Bytes, Chars, LobPrivate};
 pub struct Clob<'conn> {
   /// FFI объект для типобезопасного взаимодействия с базой
   impl_: LobImpl<'conn, Lob>,
+  /// Вид символьного объекта: в кодировке базы данных (CLOB) или в национальной кодировке (NCLOB).
+  form: CharsetForm,
 }
 impl<'conn> Clob<'conn> {
   /// Получает количество символов, содержащихся в данном объекте в данный момент.
@@ -84,7 +86,7 @@ impl<'conn> Clob<'conn> {
   /// объекта будут обновлены только после уничтожения писателя, а не при каждой записи в объект, что в
   /// лучшую сторону сказывается на производительности.
   ///
-  /// В пределах одной транзакции один BLOB может быть открыт только единожды, независимо от того, сколько
+  /// В пределах одной транзакции один CLOB может быть открыт только единожды, независимо от того, сколько
   /// локаторов (которые представляет данный класс) на него существует.
   #[inline]
   pub fn new_writer<'lob>(&'lob mut self) -> Result<ClobWriter<'lob, 'conn>> {
@@ -106,11 +108,13 @@ impl<'conn> Clob<'conn> {
   }
 }
 impl<'conn> LobPrivate<'conn> for Clob<'conn> {
-  fn new(raw: &[u8], conn: &'conn Connection) -> Self {
+  fn new(raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     let p = raw.as_ptr() as *const *mut Lob;
     let locator = unsafe { *p as *mut Lob };
+    let impl_ = LobImpl::from(conn, locator);
+    let form = try!(impl_.form());
 
-    Clob { impl_: LobImpl::from(conn, locator) }
+    Ok(Clob { impl_: impl_, form: form })
   }
 }
 //-------------------------------------------------------------------------------------------------

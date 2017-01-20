@@ -3,7 +3,7 @@ use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode};
+use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode, CharsetForm};
 
 use super::{Bytes, LobPrivate};
 
@@ -108,19 +108,19 @@ impl<'conn> Blob<'conn> {
   }
 }
 impl<'conn> LobPrivate<'conn> for Blob<'conn> {
-  fn new(raw: &[u8], conn: &'conn Connection) -> Self {
+  fn new(raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     let p = raw.as_ptr() as *const *mut Lob;
     let locator = unsafe { *p as *mut Lob };
 
-    Blob { impl_: LobImpl::from(conn, locator) }
+    Ok(Blob { impl_: LobImpl::from(conn, locator) })
   }
 }
 impl<'conn> io::Read for Blob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Количество того, сколько читать и сколько было реально прочитано.
     let mut readed = buf.len() as u64;
-    // Параметр charset игнорируется для бинарных объектов
-    match self.impl_.read_impl(0, LobPiece::One, Charset::Default, buf, &mut readed) {
+    // Параметры charset и form игнорируется для бинарных объектов
+    match self.impl_.read_impl(0, LobPiece::One, Charset::Default, CharsetForm::Implicit, buf, &mut readed) {
       // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Ok(_) => Ok(readed as usize),
@@ -132,8 +132,8 @@ impl<'conn> io::Write for Blob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     // Количество того, сколько писать и сколько было реально записано.
     let mut writed = buf.len() as u64;
-    // Параметр charset игнорируется для бинарных объектов
-    match self.impl_.write_impl(0, LobPiece::One, Charset::Default, buf, &mut writed) {
+    // Параметры charset и form игнорируется для бинарных объектов
+    match self.impl_.write_impl(0, LobPiece::One, Charset::Default, CharsetForm::Implicit, buf, &mut writed) {
       // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Ok(_) => Ok(writed as usize),
@@ -182,8 +182,8 @@ impl<'lob, 'conn: 'lob> BlobWriter<'lob, 'conn> {
 }
 impl<'lob, 'conn: 'lob> io::Write for BlobWriter<'lob, 'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    // Параметр charset игнорируется для бинарных объектов
-    let (res, piece) = self.lob.impl_.write(self.piece, Charset::Default, buf);
+    // Параметры charset и form игнорируется для бинарных объектов
+    let (res, piece) = self.lob.impl_.write(self.piece, Charset::Default, CharsetForm::Implicit, buf);
     self.piece = piece;
     res
   }
@@ -214,8 +214,8 @@ impl<'lob, 'conn: 'lob> BlobReader<'lob, 'conn> {
 impl<'lob, 'conn: 'lob> io::Read for BlobReader<'lob, 'conn> {
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    // Параметр charset игнорируется для бинарных объектов
-    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, buf);
+    // Параметры charset и form игнорируется для бинарных объектов
+    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, CharsetForm::Implicit, buf);
     self.piece = piece;
     res
   }

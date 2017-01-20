@@ -3,7 +3,7 @@ use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode};
+use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode, CharsetForm};
 
 use super::{Bytes, LobPrivate};
 
@@ -48,11 +48,11 @@ impl<'conn> BFile<'conn> {
   }
 }
 impl<'conn> LobPrivate<'conn> for BFile<'conn> {
-  fn new(raw: &[u8], conn: &'conn Connection) -> Self {
+  fn new(raw: &[u8], conn: &'conn Connection) -> Result<Self> {
     let p = raw.as_ptr() as *const *mut File;
     let locator = unsafe { *p as *mut File };
 
-    BFile { impl_: LobImpl::from(conn, locator) }
+    Ok(BFile { impl_: LobImpl::from(conn, locator) })
   }
 }
 
@@ -81,8 +81,8 @@ impl<'lob, 'conn: 'lob> BFileReader<'lob, 'conn> {
 impl<'lob, 'conn: 'lob> io::Read for BFileReader<'lob, 'conn> {
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    // Параметр charset игнорируется для бинарных объектов
-    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, buf);
+    // Параметры charset и form игнорируется для бинарных объектов
+    let (res, piece) = self.lob.impl_.read(self.piece, Charset::Default, CharsetForm::Implicit, buf);
     self.piece = piece;
     res
   }
