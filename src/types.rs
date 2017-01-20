@@ -274,9 +274,9 @@ pub enum StatementType {
 ///  where parameter = 'CHARACTERSET'
 /// order by nls_charset_id(value)
 /// ```
+/// http://www.mydul.net/charsets.html
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
-#[allow(missing_docs)]
 pub enum Charset {
   /// Использовать настройки из переменных окружения `NLS_LANG` (для типов `CHAR`, `VARCHAR2` и `CLOB`)
   /// и `NLS_NCHAR` (для типов `NCHAR`, `NVARCHAR2` и `NCLOB`).
@@ -284,61 +284,117 @@ pub enum Charset {
   /// Данная настройка является настройкой по умолчанию для базы данных и библиотека возвращает ее в реализации
   /// метода `default()`.
   Default        =    0,
+  /// ASCII 7-bit American
   US7ASCII       =    1,
+  /// IBM-PC Code Page 437 8-bit American
   US8PC437       =    4,
+  /// IBM-PC Code Page 850 8-bit West European
   WE8PC850       =   10,
+  /// IBM-PC Code Page 858 8-bit West European
   WE8PC858       =   28,
+  /// ISO 8859-1 West European
   WE8ISO8859P1   =   31,
+  /// ISO 8859-2 East European
   EE8ISO8859P2   =   32,
+  /// ISO 8859-3 South European
   SE8ISO8859P3   =   33,
+  /// ISO 8859-4 North and North-East European
   NEE8ISO8859P4  =   34,
+  /// ISO 8859-5 Latin/Cyrillic
   CL8ISO8859P5   =   35,
+  /// ISO 8859-6 Latin/Arabic
   AR8ISO8859P6   =   36,
+  /// ISO 8859-7 Latin/Greek
   EL8ISO8859P7   =   37,
+  /// ISO 8859-8 Latin/Hebrew
   IW8ISO8859P8   =   38,
+  /// ISO 8859-9 West European & Turkish
   WE8ISO8859P9   =   39,
+  /// ISO 8859-10 North European
   NE8ISO8859P10  =   40,
+  /// Thai Industrial Standard 620-2533 - ASCII 8-bit
   TH8TISASCII    =   41,
+  /// MS Windows Code Page 1258 8-bit Vietnamese
   VN8MSWIN1258   =   45,
+  /// ISO 8859-1 West European
   WE8ISO8859P15  =   46,
+  /// ISO 8859-13 Baltic
   BLT8ISO8859P13 =   47,
+  /// ISO 8859-14 Celtic
   CEL8ISO8859P14 =   48,
+  /// KOI8 Ukrainian Cyrillic
   CL8KOI8U       =   51,
+  /// ISO 8859-9 Azerbaijani
   AZ8ISO8859P9E  =   52,
+  /// IBM-PC Code Page 852 8-bit East European
   EE8PC852       =  150,
+  /// IBM-PC Code Page 866 8-bit Latin/Cyrillic
   RU8PC866       =  152,
+  /// IBM-PC Code Page 857 8-bit Turkish
   TR8PC857       =  156,
+  /// MS Windows Code Page 1250 8-bit East European
   EE8MSWIN1250   =  170,
+  /// MS Windows Code Page 1251 8-bit Latin/Cyrillic
   CL8MSWIN1251   =  171,
+  /// MS Windows Code Page 923 8-bit Estonian
   ET8MSWIN923    =  172,
+  /// MS Windows Code Page 1253 8-bit Latin/Greek
   EL8MSWIN1253   =  174,
+  /// MS Windows Code Page 1255 8-bit Latin/Hebrew
   IW8MSWIN1255   =  175,
+  /// MS Windows Code Page 921 8-bit Lithuanian
   LT8MSWIN921    =  176,
+  /// MS Windows Code Page 1254 8-bit Turkish
   TR8MSWIN1254   =  177,
+  /// MS Windows Code Page 1252 8-bit West European
   WE8MSWIN1252   =  178,
+  /// MS Windows Code Page 1257 8-bit Baltic
   BLT8MSWIN1257  =  179,
+  /// Latvian Standard LVS8-92(1) Windows/Unix 8-bit Baltic
   BLT8CP921      =  191,
+  /// RELCOM Internet Standard 8-bit Latin/Cyrillic
   CL8KOI8R       =  196,
+  /// IBM-PC Code Page 775 8-bit Baltic
   BLT8PC775      =  197,
+  /// IBM-PC Code Page 737 8-bit Greek/Latin
   EL8PC737       =  382,
+  /// ASMO Extended 708 8-bit Latin/Arabic
   AR8ASMO8X      =  500,
+  /// Arabic MS-DOS 720 Server 8-bit Latin/Arabic
   AR8ADOS720     =  558,
+  /// MS Windows Code Page 1256 8-Bit Latin/Arabic
   AR8MSWIN1256   =  560,
+  /// EUC 24-bit Japanese
   JA16EUC        =  830,
+  /// Shift-JIS 16-bit Japanese
   JA16SJIS       =  832,
+  /// Same as `JA16EUC` except for the way that the wave dash and the tilde are mapped to and from Unicode
   JA16EUCTILDE   =  837,
+  /// Same as `JA16SJIS` except for the way that the wave dash and the tilde are mapped to and from Unicode
   JA16SJISTILDE  =  838,
+  /// KSC5601 16-bit Korean
   KO16KSC5601    =  840,
+  /// MS Windows Code Page 949 Korean
   KO16MSWIN949   =  846,
+  /// CGB2312-80 16-bit Simplified Chinese
   ZHS16CGB231280 =  850,
+  /// GBK 16-bit Simplified Chinese
   ZHS16GBK       =  852,
+  /// GB18030 32-bit Simplified Chinese
   ZHS32GB18030   =  854,
+  /// EUC 32-bit Traditional Chinese
   ZHT32EUC       =  860,
+  /// BIG5 16-bit Traditional Chinese
   ZHT16BIG5      =  865,
+  /// MS Windows Code Page 950 Traditional Chinese
   ZHT16MSWIN950  =  867,
+  /// MS Windows Code Page 950 with Hong Kong Supplementary Character Set HKSCS-2001 (character set conversion to and from Unicode is based on Unicode 3.0)
   ZHT16HKSCS     =  868,
+  /// Unicode 3.0 UTF-8 Universal character set, CESU-8 compliant
   UTF8           =  871,
+  /// Unicode 7.0 UTF-8 Universal character set
   AL32UTF8       =  873,
+  /// Unicode 7.0 UTF-16 Universal character set
   AL16UTF16      = 2000,
 }
 impl Default for Charset {
