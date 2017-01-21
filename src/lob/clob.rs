@@ -182,7 +182,7 @@ impl<'lob, 'conn: 'lob> ClobWriter<'lob, 'conn> {
     self.lob.erase(offset, count)
   }
 }
-impl<'lob, 'conn: 'lob> io::Write for ClobReader<'lob, 'conn> {
+impl<'lob, 'conn: 'lob> io::Write for ClobWriter<'lob, 'conn> {
   #[inline]
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     let (res, piece) = self.lob.impl_.write(self.piece, self.charset, self.lob.form, buf);

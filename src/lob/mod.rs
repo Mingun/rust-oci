@@ -10,7 +10,7 @@ mod clob;
 mod bfile;
 
 pub use self::blob::{Blob, BlobReader, BlobWriter};
-pub use self::clob::{Clob, ClobWriter};
+pub use self::clob::{Clob, ClobReader, ClobWriter};
 pub use self::bfile::{BFile, BFileReader};
 
 /// Тип, представляющий размер в байтах.
