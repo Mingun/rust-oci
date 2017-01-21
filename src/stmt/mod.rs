@@ -78,15 +78,6 @@ impl Column {
       scale: scale as usize,
     })
   }
-  /// Для биндинга значений через `OCIBindByPos`, `OCIBindByName` и `OCIDefineByPos` для некоторых типов
-  /// столбцов необходимо передавать не тот тип, что в столбце записан, а другой, в частности, вместо
-  ///  `SQLT_NUM` требуется передавать `SQLT_VNU`.
-  fn bind_type(&self) -> Type {
-    match self.type_ {
-      Type::NUM => Type::VNU,
-      t => t,
-    }
-  }
 }
 //-------------------------------------------------------------------------------------------------
 /// Подготовленное выражение.
@@ -418,7 +409,7 @@ impl<'rs> Row<'rs> {
     for c in &rs.columns {
       data.push(try!(DefineInfo::new(rs.stmt, c)));
       // unwrap делать безопасно, т.к. мы только что вставили в массив данные
-      try!(rs.stmt.define(c.pos, c.bind_type(), data.last_mut().unwrap(), Default::default()));
+      try!(rs.stmt.define(c.pos, c.type_, data.last_mut().unwrap(), Default::default()));
     }
 
     Ok(Row { rs: rs, data: data, info: None })
@@ -450,7 +441,7 @@ impl<'rs> Row<'rs> {
   ///    таким образом, невозможно отдать ссылку на него, не сохранив предварительно внутри структуры `Row`
   pub fn get<T: FromDB<'rs>, I: RowIndex>(&self, index: I) -> Result<Option<T>> {
     let col = try!(self.column(index));
-    self.data[col.pos].to(col.bind_type(), self.rs.stmt.connection())
+    self.data[col.pos].to(col.type_, self.rs.stmt.connection())
   }
 }
 /// Ленивый набор результатов, полученный при выполнении `SELECT` выражения. Реально данные извлекаются при итерации по набору,

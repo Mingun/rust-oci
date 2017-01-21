@@ -54,13 +54,27 @@ impl Default for OCINumber {
 }
 impl<'conn> FromDB<'conn> for OCINumber {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
+    println!("ty: {:?} [{:?}]{:?}", ty, raw.len(), raw);
     match ty {
+      Type::NUM => {
+        let l = raw.len();
+        if l > 21 {
+          return Err(Error::Overflow { extracted: l, capacity: 21 });
+        }
+        // В соответствии с примером в http://docs.oracle.com/database/122/LNOCI/object-relational-data-types-in-oci.htm#LNOCI16848
+        // можно так копаться во внутренней структуре числа.
+        let mut r = OCINumber::default();
+        r.0[0] = l as u8;
+        r.0[1..(1+l)].clone_from_slice(raw);
+        Ok(r)
+      }
       Type::VNU => {
-        if raw.len() > 22 {
-          return Err(Error::Overflow { extracted: raw.len(), capacity: 22 });
+        let l = raw.len();
+        if l > 22 {
+          return Err(Error::Overflow { extracted: l, capacity: 22 });
         }
         let mut r = OCINumber::default();
-        r.0[0..raw.len()].clone_from_slice(raw);
+        r.0[0..l].clone_from_slice(raw);
         Ok(r)
       },
       t => Err(Error::Conversion(t)),
@@ -68,27 +82,37 @@ impl<'conn> FromDB<'conn> for OCINumber {
   }
 }
 
-macro_rules! simple_from {
-  ($ty:ty, $($types:ident),+) => (
+macro_rules! num_from {
+  ($ty:ty, $sign:expr, $($types:ident),+) => (
     impl<'conn> FromDB<'conn> for $ty {
-      fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
+      fn from_db(ty: Type, raw: &[u8], conn: &Connection) -> Result<Self> {
         match ty {
           $(Type::$types)|+ => Ok(unsafe { *(raw.as_ptr() as *const $ty) }),
-          t => Err(Error::Conversion(t)),
+          t => {
+            let num = try!(OCINumber::from_db(t, raw, conn));
+            num.to::<$ty>(conn.error(), $sign).map_err(Into::into)
+          },
         }
       }
     }
   )
 }
-simple_from!(f32, FLT, BFLOAT);
-simple_from!(f64, FLT, BDOUBLE);
+// Данные конвертации взяты из http://docs.oracle.com/database/122/LNOCI/data-types.htm#LNOCI16271
+
+// num_from!(f32, FLT, BFLOAT);
+// num_from!(f64, FLT, BDOUBLE);
 
 // Чтобы оракл поместил данные в буфер в этих форматах, ему нужно при define-е указать соответствующую
 // длину переменной, а сейчас там всегда указывается длина столбца. Таким образом, оракл всегда будет
 // возвращать данные в VNU формате
-simple_from!( i8, INT);
-simple_from!(i16, INT);
-simple_from!(i32, INT);
-simple_from!(i64, INT);
+num_from!(   i8, NumberFlag::Signed, INT);
+num_from!(  i16, NumberFlag::Signed, INT);
+num_from!(  i32, NumberFlag::Signed, INT);
+num_from!(  i64, NumberFlag::Signed, INT);
+num_from!(isize, NumberFlag::Signed, INT);
 
-simple_from!(u64, INT, UIN);
+num_from!(   u8, NumberFlag::Unsigned, UIN);
+num_from!(  u16, NumberFlag::Unsigned, UIN);
+num_from!(  u32, NumberFlag::Unsigned, UIN);
+num_from!(  u64, NumberFlag::Unsigned, UIN);
+num_from!(usize, NumberFlag::Unsigned, UIN);

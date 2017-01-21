@@ -16,6 +16,8 @@ use ffi::DescriptorType;// Типажи для безопасного моста
 use ffi::native::time::{Timestamp, TimestampWithTZ, TimestampWithLTZ, IntervalYM, IntervalDS};
 use ffi::native::lob::{Lob, File};
 
+/// TODO: Как сказано в http://docs.oracle.com/database/122/LNOCI/binding-and-defining-in-oci.htm#LNOCI16384,
+/// выходные буферы для операций define должны быть выровнены по 2 байта.
 #[derive(Debug)]
 pub enum Storage<'d> {
   Vec {
