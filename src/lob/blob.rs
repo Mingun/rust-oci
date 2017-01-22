@@ -117,28 +117,13 @@ impl<'conn> LobPrivate<'conn> for Blob<'conn> {
 }
 impl<'conn> io::Read for Blob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    // Количество того, сколько читать и сколько было реально прочитано.
-    let mut readed = buf.len() as u64;
     // Параметры charset и form игнорируется для бинарных объектов
-    match self.impl_.read_impl(0, LobPiece::One, Charset::Default, CharsetForm::Implicit, buf, &mut readed) {
-      // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
-      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Ok(_) => Ok(readed as usize),
-      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
-    }
+    self.impl_.read(LobPiece::One, Charset::Default, CharsetForm::Implicit, buf).0
   }
 }
 impl<'conn> io::Write for Blob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    // Количество того, сколько писать и сколько было реально записано.
-    let mut writed = buf.len() as u64;
-    // Параметры charset и form игнорируется для бинарных объектов
-    match self.impl_.write_impl(0, LobPiece::One, Charset::Default, CharsetForm::Implicit, buf, &mut writed) {
-      // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
-      // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Ok(_) => Ok(writed as usize),
-      Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
-    }
+    self.impl_.write(LobPiece::One, Charset::Default, CharsetForm::Implicit, buf).0
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())

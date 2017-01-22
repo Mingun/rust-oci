@@ -220,7 +220,9 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     if piece == LobPiece::Last {
       return (Ok(0), piece);
     }
-    let mut readed = 0;
+    // Количество того, сколько читать и сколько было реально прочитано.
+    // В случае потокового чтения нужно передать 0, что означает -- прочитать все, что есть.
+    let mut readed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
     match self.read_impl(0, piece, charset, form, buf, &mut readed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
@@ -228,7 +230,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       },
       // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Err(NeedData) => (Ok(readed as usize), LobPiece::Next),
+      Err(NeedData) if piece != LobPiece::One => (Ok(readed as usize), LobPiece::Next),
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }

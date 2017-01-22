@@ -165,10 +165,10 @@ insert into type_lob values(0,--NULL тест
   null, null
 );
 insert into type_lob values (1,
-  rpad('*', 100, '*'),
-  rpad('*', 100, '*'),
-  utl_raw.cast_to_raw(rpad('*', 100, '*')),
-  bfilename('test_bfiles', 'bfile')
+  '0123456789',
+  '0123456789',
+  utl_raw.cast_to_raw('00010203040506070809'),
+  bfilename('TEST_BFILES', 'bfile')
 );
 ---------------------------------------------------------------------------------------------------
 create table type_specific (

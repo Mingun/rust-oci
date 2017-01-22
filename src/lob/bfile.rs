@@ -33,6 +33,7 @@ impl<'conn> BFile<'conn> {
   pub fn new_reader<'lob: 'conn>(&'lob mut self) -> Result<BFileReader<'lob, 'conn>> {
     self.open(LobPiece::First)
   }
+  /// Открывает данный файловый объект с доступом только на чтение.
   #[inline]
   fn open<'lob>(&'lob mut self, piece: LobPiece) -> Result<BFileReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
