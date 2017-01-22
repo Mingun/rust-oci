@@ -231,6 +231,10 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Err(NeedData) if piece != LobPiece::One => (Ok(readed as usize), LobPiece::Next),
+      //TODO: Не совсем верный код ошибки, но более подхожящего нет. Более верно можно сказать "Buffer too small"
+      // Правда, в случае Oracle-а имеется баг в нем, что при чтении [N]CLOB-а предоставленный буфер может быть заполнен
+      // только примерно наполовину. Пока неясно, как ее обойти
+      Err(NeedData) if readed == 0 => (Err(io::ErrorKind::UnexpectedEof.into()), LobPiece::Next),
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }
@@ -261,7 +265,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     if piece == LobPiece::Last {
       return (Ok(0), piece);
     }
-    let mut writed = 0;
+    let mut writed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
     match self.write_impl(0, piece, charset, form, buf, &mut writed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
@@ -269,7 +273,8 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       },
       // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Err(NeedData) => (Ok(writed as usize), LobPiece::Next),
+      Err(NeedData) if piece != LobPiece::One => (Ok(writed as usize), LobPiece::Next),
+      Err(NeedData) if writed == 0 => (Err(io::ErrorKind::WriteZero.into()), LobPiece::Next),
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }

@@ -187,10 +187,7 @@ impl<'lob, 'conn: 'lob> io::Write for ClobWriter<'lob, 'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
     let (res, piece) = self.lob.impl_.write(self.piece, self.charset, self.lob.form, buf);
     self.piece = piece;
-    match (res, piece) {
-      (Ok(0), LobPiece::Next) => Err(io::ErrorKind::WriteZero.into()),
-      (res, _) => res,
-    }
+    res
   }
   #[inline]
   fn flush(&mut self) -> io::Result<()> {
@@ -222,10 +219,7 @@ impl<'lob, 'conn: 'lob> io::Read for ClobReader<'lob, 'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     let (res, piece) = self.lob.impl_.read(self.piece, self.charset, self.lob.form, buf);
     self.piece = piece;
-    match (res, piece) {
-      (Ok(0), LobPiece::Next) => Err(io::ErrorKind::UnexpectedEof.into()),
-      (res, _) => res,
-    }
+    res
   }
 }
 impl<'lob, 'conn: 'lob> Drop for ClobReader<'lob, 'conn> {
