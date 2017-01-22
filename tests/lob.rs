@@ -17,12 +17,13 @@ extern crate oci;
 use std::io::Read;
 
 use oci::Environment;
+use oci::types::CreateMode;
 use oci::lob::{Blob, Clob, BFile};
 mod utils;
 
 #[test]
 fn null_extract() {
-  let env = Environment::default();
+  let env = Environment::new(CreateMode::Threaded).expect("Can't init ORACLE environment in THREADED mode");
   let conn = utils::connect(&env);
   let mut stmt = conn.prepare("select * from type_lob where id = 0").expect("Can't prepare query");
 
@@ -36,7 +37,7 @@ fn null_extract() {
 }
 macro_rules! extract_test {
   ($Type:tt, $testID:expr, $column:expr, $first_part:expr, $second_part:expr) => (
-    let env = Environment::default();
+    let env = Environment::new(CreateMode::Threaded).expect("Can't init ORACLE environment in THREADED mode");
     let conn = utils::connect(&env);
     let mut stmt = conn.prepare(&format!("select * from type_lob where id = {}", $testID)).expect("Can't prepare query");
 

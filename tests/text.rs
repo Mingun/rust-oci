@@ -42,11 +42,12 @@
 extern crate oci;
 
 use oci::Environment;
+use oci::types::CreateMode;
 mod utils;
 
 #[test]
 fn null_extract() {
-  let env = Environment::default();
+  let env = Environment::new(CreateMode::Threaded).expect("Can't init ORACLE environment in THREADED mode");
   let conn = utils::connect(&env);
   let mut stmt = conn.prepare("select * from type_text where id = 0").expect("Can't prepare query");
 
@@ -58,7 +59,7 @@ fn null_extract() {
   }
 }
 fn extract_test(column: usize, expected: String) {
-  let env = Environment::default();
+  let env = Environment::new(CreateMode::Threaded).expect("Can't init ORACLE environment in THREADED mode");
   let conn = utils::connect(&env);
   let mut stmt = conn.prepare("select * from type_text where id = 1").expect("Can't prepare query");
 
