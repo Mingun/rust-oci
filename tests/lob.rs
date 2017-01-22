@@ -14,12 +14,10 @@
 
 extern crate oci;
 
-use std::fmt::Debug;
 use std::io::Read;
 
 use oci::Environment;
 use oci::lob::{Blob, Clob, BFile};
-use oci::convert::FromDB;
 mod utils;
 
 #[test]
@@ -37,10 +35,10 @@ fn null_extract() {
   assert_eq!(None, row.get::<BFile,usize>(4).expect("Can't get BFILE"));
 }
 macro_rules! extract_test {
-  ($Type:tt, $column:expr, $first_part:expr, $second_part:expr) => (
+  ($Type:tt, $testID:expr, $column:expr, $first_part:expr, $second_part:expr) => (
     let env = Environment::default();
     let conn = utils::connect(&env);
-    let mut stmt = conn.prepare("select * from type_lob where id = 1").expect("Can't prepare query");
+    let mut stmt = conn.prepare(&format!("select * from type_lob where id = {}", $testID)).expect("Can't prepare query");
 
     let rs = stmt.query().expect("Can't execute query");
     let row = rs.next().expect("Can't fetch").expect("Nothing fetch");
@@ -86,17 +84,28 @@ fn reader_read<R: Read>(mut r: R, first_expected: &[u8], second_expected: &[u8])
 }
 #[test]
 fn clob_extract() {
-  extract_test!(Clob, 1, b"01234", b"56789");
+  extract_test!(Clob, 1, 1, b"01234", b"56789");
 }
 #[test]
 fn nclob_extract() {
-  extract_test!(Clob, 2, b"01234", b"56789");
+  extract_test!(Clob, 1, 2, b"01234", b"56789");
 }
 #[test]
 fn blob_extract() {
-  extract_test!(Blob, 3, &[0,1,2,3,4], &[5,6,7,8,9]);
+  extract_test!(Blob, 1, 3, &[0,1,2,3,4], &[5,6,7,8,9]);
 }
 #[test]
 fn bfile_extract() {
-  extract_test!(BFile, 4, &[0,1,2,3,4], &[5,6,7,8,9]);
+  extract_test!(BFile, 1, 4, &[0,1,2,3,4], &[5,6,7,8,9]);
+}
+
+#[test]
+#[ignore]
+fn clob_extract_unicode() {
+  extract_test!(Clob, 2, 1, b"01234", b"56789");
+}
+#[test]
+#[ignore]
+fn nclob_extract_unicode() {
+  extract_test!(Clob, 2, 2, b"01234", b"56789");
 }
