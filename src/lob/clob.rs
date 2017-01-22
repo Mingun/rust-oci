@@ -147,6 +147,19 @@ impl<'conn> LobPrivate<'conn> for Clob<'conn> {
     Ok(Clob { impl_: impl_, form: form })
   }
 }
+impl<'conn> io::Read for Clob<'conn> {
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    self.impl_.read(LobPiece::One, Charset::AL32UTF8, self.form, buf).0
+  }
+}
+impl<'conn> io::Write for Clob<'conn> {
+  fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    self.impl_.write(LobPiece::One, Charset::AL32UTF8, self.form, buf).0
+  }
+  fn flush(&mut self) -> io::Result<()> {
+    Ok(())
+  }
+}
 //-------------------------------------------------------------------------------------------------
 /// Позволяет писать в большой символьный объект, не вызывая пересчета индексов после каждой записи.
 /// Индексы будут пересчитаны только после уничтожения данного объекта.
