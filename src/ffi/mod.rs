@@ -115,6 +115,10 @@ fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_in
       T::ID as c_uint
     )
   };
+  // 100 == NoData - больше нет данных для расшифровки. В буфере может записаться мусор, поэтому не используем его
+  if res == 100 {
+    return (res, Info { code: code as isize, message: String::with_capacity(0) });
+  }
   unsafe {
     // Так как функция только заполняет массив, но не возвращает длину, ее нужно вычислить и задать,
     // иначе трансформация в строку ничего не даст, т.к. будет считать массив пустым.
@@ -146,8 +150,7 @@ fn decode_error<T: ErrorHandle>(handle: *mut T, result: c_int) -> DbError {
 
     // Ошибки
     -1 => {
-      let (_, info) = decode_error_piece(handle, 1);
-      DbError::Fault(info)
+      DbError::Fault(decode_error_piece(handle, 1).1)
     },
     -2 => DbError::InvalidHandle,
     -3123 => DbError::StillExecuting,
