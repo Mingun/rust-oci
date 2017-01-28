@@ -232,6 +232,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
       Err(NeedData) if piece != LobPiece::One => (Ok(readed as usize), LobPiece::Next),
       //TODO: Не совсем верный код ошибки, но более подхожящего нет. Более верно можно сказать "Buffer too small"
+      // Заменить, если будет реализован https://github.com/rust-lang/rust/issues/39365
       // Правда, в случае Oracle-а имеется баг в нем, что при чтении [N]CLOB-а предоставленный буфер может быть заполнен
       // только примерно наполовину. Пока неясно, как ее обойти
       Err(NeedData) if readed == 0 => (Err(io::ErrorKind::UnexpectedEof.into()), LobPiece::Next),
