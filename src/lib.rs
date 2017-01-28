@@ -151,7 +151,7 @@ impl<'e> Environment<'e> {
   }
 }
 impl<'e> Default for Environment<'e> {
-  /// Создает окружение с использованеим параметров по умочланию. Вызывает понику текущего потока, если
+  /// Создает окружение с использованием параметров по умолчанию. Вызывает панику текущего потока, если
   /// при создании окружения произошла ошибка
   fn default() -> Self {
     Environment::new(InitParams::default()).expect("Can't create environment with default parameters")
