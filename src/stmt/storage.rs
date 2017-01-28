@@ -1,7 +1,7 @@
 
 use std::convert::{From, Into};
 use std::mem;
-use std::os::raw::{c_int, c_short, c_void, c_ushort};
+use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
 
@@ -26,7 +26,7 @@ pub enum Storage<'d> {
     /// Количество байт, выделенной по указателю `ptr`.
     capacity: usize,
     /// Количество байт, реально используемое для хранения данных.
-    size: c_ushort,
+    size: u16,
   },
   Descriptor(GenericDescriptor<'d>),
 }
@@ -39,14 +39,14 @@ impl<'d> Storage<'d> {
     }
   }
   /// Получает вместимость буфера
-  fn capacity(&self) -> c_int {
+  fn capacity(&self) -> i32 {
     match *self {
-      Storage::Vec { capacity, .. } => capacity as c_int,
-      _ => mem::size_of::<*const ()>() as c_int,
+      Storage::Vec { capacity, .. } => capacity as i32,
+      _ => mem::size_of::<*const ()>() as i32,
     }
   }
   /// Получает адрес в памяти, куда будет записан размер данных, фактически извлеченный из базы
-  fn size_mut(&mut self) -> *mut c_ushort {
+  fn size_mut(&mut self) -> *mut u16 {
     match *self {
       Storage::Vec { ref mut size, .. } => size,
       _ => ptr::null_mut(),
@@ -93,7 +93,7 @@ macro_rules! alloc {
           Ok(d.into())
         }
       )*
-      _ => Ok(Vec::with_capacity($col.size).into()),
+      _ => Ok(Vec::with_capacity($col.size as usize).into()),
     }
   );
 }
@@ -108,8 +108,8 @@ pub struct DefineInfo<'d> {
   /// * `0`   Oracle Database assigned an intact value to the host variable.
   /// * `>0`  The length of the item is greater than the length of the output variable; the item has been truncated. The positive
   ///         value returned in the indicator variable is the actual length before truncation.
-  pub is_null: c_short,
-  pub ret_code: c_ushort,
+  pub is_null: i16,
+  pub ret_code: u16,
 }
 impl<'d> DefineInfo<'d> {
   /// Создает буферы для хранения информации, извлекаемой из базы
@@ -133,11 +133,11 @@ impl<'d> DefineInfo<'d> {
     self.storage.as_ptr()
   }
   #[inline]
-  pub fn capacity(&self) -> c_int {
+  pub fn capacity(&self) -> i32 {
     self.storage.capacity()
   }
   #[inline]
-  pub fn size_mut(&mut self) -> *mut c_ushort {
+  pub fn size_mut(&mut self) -> *mut u16 {
     self.storage.size_mut()
   }
 

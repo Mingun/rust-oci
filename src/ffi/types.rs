@@ -1,24 +1,24 @@
 
-use std::os::raw::{c_int, c_void, c_uchar, c_ulonglong, c_uint};
+use std::os::raw::c_void;
 
 pub type MallocFn  = extern "C" fn(ctxp: *mut c_void, size: usize) -> *mut c_void;
 pub type ReallocFn = extern "C" fn(ctxp: *mut c_void, memptr: *mut c_void, newsize: usize) -> *mut c_void;
 pub type FreeFn    = extern "C" fn(ctxp: *mut c_void, memptr: *mut c_void);
 
 pub type OCICallbackLobArrayRead  = extern "C" fn(ctxp: *mut c_void,
-                                                  array_iter: c_uint,
+                                                  array_iter: u32,
                                                   bufp: *const c_void,
-                                                  lenp: c_ulonglong,
-                                                  piecep: c_uchar,
+                                                  lenp: u64,
+                                                  piecep: u8,
                                                   changed_bufpp: *mut *mut c_void,
-                                                  changed_lenp: *mut c_ulonglong) -> c_int;
+                                                  changed_lenp: *mut u64) -> i32;
 pub type OCICallbackLobArrayWrite = extern "C" fn(ctxp: *mut c_void,
-                                                  array_iter: c_uint,
+                                                  array_iter: u32,
                                                   bufp: *mut c_void,
-                                                  lenp: *mut c_ulonglong,
-                                                  piecep: *mut c_uchar,
+                                                  lenp: *mut u64,
+                                                  piecep: *mut u8,
                                                   changed_bufpp: *mut *mut c_void,
-                                                  changed_lenp: *mut c_ulonglong) -> c_int;
+                                                  changed_lenp: *mut u64) -> i32;
 
 /// Specifies the type of credentials to use for establishing the user session
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

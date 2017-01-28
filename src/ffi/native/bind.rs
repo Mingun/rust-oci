@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI153
 
-use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ushort};
+use std::os::raw::{c_int, c_void};
 
 use ffi::native::{OCIBind, OCISvcCtx, OCIDefine, OCIDescribe, OCIError, OCIStmt, OCIType};// FFI типы
 
@@ -15,70 +15,70 @@ extern "C" {
   /*pub fn OCIBindByName2(stmtp: *mut OCIStmt,
                         defnpp: *mut *mut OCIBind,
                         errhp: *mut OCIError,
-                        placeholder: *const c_uchar,
-                        placeh_len: c_int,
+                        placeholder: *const u8,
+                        placeh_len: i32,
                         valuep: *mut c_void,
-                        value_sz: c_longlong,
-                        dty: c_ushort,
+                        value_sz: i64,
+                        dty: u16,
                         indp: *mut c_void,
-                        alenp: *mut c_uint,
-                        rcodep: *mut c_ushort,
-                        maxarr_len: c_uint,
-                        curelep: *mut c_uint,
-                        mode: c_uint) -> c_int;
+                        alenp: *mut u32,
+                        rcodep: *mut u16,
+                        maxarr_len: u32,
+                        curelep: *mut u32,
+                        mode: u32) -> c_int;
   pub fn OCIBindByPos2(stmtp: *mut OCIStmt,
                        defnpp: *mut *mut OCIBind,
                        errhp: *mut OCIError,
-                       position: c_uint,
+                       position: u32,
                        valuep: *mut c_void,
-                       value_sz: c_longlong,
-                       dty: c_ushort,
+                       value_sz: i64,
+                       dty: u16,
                        indp: *mut c_void,
-                       alenp: *mut c_uint,
-                       rcodep: *mut c_ushort,
-                       maxarr_len: c_uint,
-                       curelep: *mut c_uint,
-                       mode: c_uint) -> c_int;
+                       alenp: *mut u32,
+                       rcodep: *mut u16,
+                       maxarr_len: u32,
+                       curelep: *mut u32,
+                       mode: u32) -> c_int;
 
   pub fn OCIDefineByPos2(stmtp: *mut OCIStmt,
                          defnpp: *mut *mut OCIDefine,
                          errhp: *mut OCIError,
-                         position: c_uint,
+                         position: u32,
                          valuep: *mut c_void,
-                         value_sz: c_longlong,
-                         dty: c_ushort,
+                         value_sz: i64,
+                         dty: u16,
                          indp: *mut c_void,
-                         rlenp: *mut c_uint,
-                         rcodep: *mut c_ushort,
-                         mode: c_uint) -> c_int;*/
+                         rlenp: *mut u32,
+                         rcodep: *mut u16,
+                         mode: u32) -> c_int;*/
 
   pub fn OCIBindByName(stmtp: *mut OCIStmt,
                        defnpp: *mut *mut OCIBind,
                        errhp: *mut OCIError,
-                       placeholder: *const c_uchar,
-                       placeh_len: c_int,
+                       placeholder: *const u8,
+                       placeh_len: i32,
                        valuep: *mut c_void,
-                       value_sz: c_int,
-                       dty: c_ushort,
+                       value_sz: i32,
+                       dty: u16,
                        indp: *mut c_void,
-                       alenp: *mut c_ushort,
-                       rcodep: *mut c_ushort,
-                       maxarr_len: c_uint,
-                       curelep: *mut c_uint,
-                       mode: c_uint) -> c_int;
+                       alenp: *mut u16,
+                       rcodep: *mut u16,
+                       maxarr_len: u32,
+                       curelep: *mut u32,
+                       mode: u32) -> c_int;
   pub fn OCIBindByPos(stmtp: *mut OCIStmt,
                       defnpp: *mut *mut OCIBind,
                       errhp: *mut OCIError,
-                      position: c_uint,
+                      position: u32,
                       valuep: *mut c_void,
-                      value_sz: c_int,
-                      dty: c_ushort,
+                      value_sz: i32,
+                      dty: u16,
                       indp: *mut c_void,
-                      alenp: *mut c_ushort,
-                      rcodep: *mut c_ushort,
-                      maxarr_len: c_uint,
-                      curelep: *mut c_uint,
-                      mode: c_uint) -> c_int;
+                      alenp: *mut u16,
+                      rcodep: *mut u16,
+                      maxarr_len: u32,
+                      curelep: *mut u32,
+                      mode: u32) -> c_int;
 
   /// Associates an item in a select list with the type and output data buffer.
   ///
@@ -140,14 +140,14 @@ extern "C" {
   pub fn OCIDefineByPos(stmtp: *mut OCIStmt,
                         defnpp: *mut *mut OCIDefine,
                         errhp: *mut OCIError,
-                        position: c_uint,
+                        position: u32,
                         valuep: *mut c_void,
-                        value_sz: c_int,
-                        dty: c_ushort,
+                        value_sz: i32,
+                        dty: u16,
                         indp: *mut c_void,
-                        rlenp: *mut c_ushort,
-                        rcodep: *mut c_ushort,
-                        mode: c_uint) -> c_int;
+                        rlenp: *mut u16,
+                        rcodep: *mut u16,
+                        mode: u32) -> c_int;
 
   /// Sets up additional attributes necessary for a named data type or `REF` define.
   ///
@@ -189,29 +189,29 @@ extern "C" {
                          errhp: *mut OCIError,
                          tdo: *const OCIType,
                          pgvpp: *mut *mut c_void,
-                         pvszsp: *mut c_uint,
+                         pvszsp: *mut u32,
                          indpp: *mut *mut c_void,
-                         indszp: *mut c_uint) -> c_int;
+                         indszp: *mut u32) -> c_int;
   /// Describes existing schema and subschema objects.
   pub fn OCIDescribeAny(svchp: *mut OCISvcCtx,
                         errhp: *mut OCIError,
                         objptr: *mut c_void,
-                        objptr_len: c_uint,
-                        objptr_typ: c_uchar,
-                        info_level: c_uchar,
-                        objtyp: c_uchar,
+                        objptr_len: u32,
+                        objptr_typ: u8,
+                        info_level: u8,
+                        objtyp: u8,
                         dschp: *mut OCIDescribe) -> c_int;
 
   pub fn OCIStmtGetBindInfo(stmtp: *mut OCIStmt,
                             errhp: *mut OCIError,
-                            size: c_uint,
-                            startloc: c_uint,
-                            found: *mut c_int,
-                            bvnp: *mut *mut c_uchar,
-                            bvnl: *mut c_uchar,
-                            invp: *mut *mut c_uchar,
-                            inpl: *mut c_uchar,
-                            dupl: *mut c_uchar,
+                            size: u32,
+                            startloc: u32,
+                            found: *mut i32,
+                            bvnp: *mut *mut u8,
+                            bvnl: *mut u8,
+                            invp: *mut *mut u8,
+                            inpl: *mut u8,
+                            dupl: *mut u8,
                             hndl: *mut *mut OCIBind) -> c_int;
 
 }

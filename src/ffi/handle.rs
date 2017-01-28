@@ -1,5 +1,5 @@
 use std::fmt;
-use std::os::raw::{c_int, c_uint, c_void};
+use std::os::raw::{c_int, c_void};
 use std::ptr;
 
 use DbResult;
@@ -30,7 +30,7 @@ impl<T: HandleType> Handle<T> {
     let res = unsafe {
       OCIHandleAlloc(
         env.native() as *const c_void,
-        &mut handle, T::ID as c_uint,
+        &mut handle, T::ID as u32,
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделенное под них место
       )
     };
@@ -49,7 +49,7 @@ impl<T: HandleType> Handle<T> {
 }
 impl<T: HandleType> Drop for Handle<T> {
   fn drop(&mut self) {
-    let res = unsafe { OCIHandleFree(self.native as *mut c_void, T::ID as c_uint) };
+    let res = unsafe { OCIHandleFree(self.native as *mut c_void, T::ID as u32) };
     //FIXME: Необходимо получать точную причину ошибки, а для этого нужна ссылка на OCIError.
     // Однако тащить ее в хендл нельзя, т.к. данная структура должна быть легкой
     check(res).expect("OCIHandleFree");
@@ -64,8 +64,8 @@ impl<T: HandleType> fmt::Debug for Handle<T> {
   }
 }
 impl<T: HandleType> AttrHolder<T> for Handle<T> {
-  fn holder_type() -> c_uint {
-    T::ID as c_uint
+  fn holder_type() -> u32 {
+    T::ID as u32
   }
 
   fn native(&self) -> *const T {

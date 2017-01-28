@@ -66,8 +66,6 @@ pub type Result<T> = std::result::Result<T, error::Error>;
 /// через FFI интерфейс.
 type DbResult<T> = std::result::Result<T, error::DbError>;
 
-use std::os::raw::c_uint;
-
 use params::{InitParams, ConnectParams, Credentials};
 use stmt::Statement;
 use types::{AuthMode, Syntax};
@@ -215,8 +213,8 @@ impl<'e> Connection<'e> {
         context.native_mut(),
         env.error.native_mut(),
         session.native_mut(),
-        credMode as c_uint,
-        params.auth_mode as c_uint
+        credMode as u32,
+        params.auth_mode as u32
       )
     };
     try!(env.error.check(res));
@@ -349,7 +347,7 @@ impl<'e> Drop for Connection<'e> {
         self.context.native_mut(),
         self.error().native_mut(),
         self.session.native_mut(),
-        self.auth_mode as c_uint
+        self.auth_mode as u32
       )
     };
     self.error().check(res).expect("OCISessionEnd");

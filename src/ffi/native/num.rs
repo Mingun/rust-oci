@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/oci-NUMBER-functions.htm
 
-use std::os::raw::{c_int, c_void, c_uchar, c_uint};
+use std::os::raw::{c_int, c_void, c_uint};
 
 use convert::OCINumber;
 
@@ -74,10 +74,10 @@ extern "C" {
   /// Converts an Oracle `NUMBER` to a character string according to a specified format.
   pub fn OCINumberToText(err: *mut OCIError,
                          number: *const OCINumber,
-                         fmt: *const c_uchar,
-                         fmt_length: c_uint,
-                         nls_params: *const c_uchar,
-                         nls_p_length: c_uint,
-                         buf_size: *mut c_uint,
-                         buf: *mut c_uchar) -> c_int;
+                         fmt: *const u8,
+                         fmt_length: u32,
+                         nls_params: *const u8,
+                         nls_p_length: u32,
+                         buf_size: *mut u32,
+                         buf: *mut u8) -> c_int;
 }

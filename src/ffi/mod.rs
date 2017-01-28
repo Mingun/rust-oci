@@ -1,6 +1,6 @@
 
 use std::ffi::CStr;
-use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_void};
+use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 
 use DbResult;
@@ -99,7 +99,7 @@ pub trait InterruptHandle : HandleType {}
 ///   Вызовы функций могут возвращать множество ошибок. Это получаемый номер ошибки (нумерация с 1)
 /// - msg:
 ///   Буфер, куда будет записано сообщение оракла об ошибке
-fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_int, Info) {
+fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: u32) -> (c_int, Info) {
   let mut code: c_int = 0;
   // Сообщение получается в кодировке, которую установили для хендла окружения.
   // Оракл рекомендует использовать буфер величиной 3072 байта
@@ -110,9 +110,9 @@ fn decode_error_piece<T: ErrorHandle>(handle: *mut T, error_no: c_uint) -> (c_in
       error_no,
       ptr::null_mut(),// Устаревший с версии 8.x параметр, не используется
       &mut code,
-      buf.as_mut_ptr() as *mut c_uchar,
-      buf.capacity() as c_uint,
-      T::ID as c_uint
+      buf.as_mut_ptr(),
+      buf.capacity() as u32,
+      T::ID as u32
     )
   };
   // 100 == NoData - больше нет данных для расшифровки. В буфере может записаться мусор, поэтому не используем его

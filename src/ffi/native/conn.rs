@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/connect-authorize-and-initialize-functions.htm#LNOCI151
 
-use std::os::raw::{c_int, c_void, c_uchar, c_uint, c_ushort};
+use std::os::raw::{c_int, c_void};
 
 use ffi::types;
 use ffi::native::{OCIEnv, OCIError, OCIServer, OCISession, OCISvcCtx};// FFI типы
@@ -55,17 +55,17 @@ extern "C" {
   ///   The client-side national character set for the current environment handle. If it is `0`,
   ///   `NLS_NCHAR` setting is used. `OCI_UTF16ID` is a valid setting; it is used by the `NCHAR` data.
   pub fn OCIEnvNlsCreate(envhpp: *mut *mut OCIEnv, // результат
-                         mode: c_uint,
+                         mode: u32,
                          ctxp: *mut c_void,
                          malocfp: Option<types::MallocFn>,
                          ralocfp: Option<types::ReallocFn>,
                          mfreefp: Option<types::FreeFn>,
                          xtramemsz: usize,
                          usrmempp: *mut *mut c_void,
-                         charset: c_ushort,
-                         ncharset: c_ushort) -> c_int;
+                         charset: u16,
+                         ncharset: u16) -> c_int;
   /// Detaches the process from the shared memory subsystem and releases the shared memory.
-  pub fn OCITerminate(mode: c_uint) -> c_int;
+  pub fn OCITerminate(mode: u32) -> c_int;
 
   /// Creates an access path to a data source for OCI operations.
   ///
@@ -112,9 +112,9 @@ extern "C" {
   ///   handle, the `mode` value here does not contribute to any session handle.
   pub fn OCIServerAttach(srvhp: *mut OCIServer,// результат
                          errhp: *mut OCIError,
-                         dblink: *const c_uchar,
-                         dblink_len: c_int,
-                         mode: c_uint) -> c_int;
+                         dblink: *const u8,
+                         dblink_len: i32,
+                         mode: u32) -> c_int;
   /// Deletes an access path to a data source for OCI operations.
   ///
   /// # Comments
@@ -130,17 +130,17 @@ extern "C" {
   ///   Specifies the various modes of operation. The only valid mode is `OCI_DEFAULT` for the default mode.
   pub fn OCIServerDetach(srvhp: *mut OCIServer,// результат
                          errhp: *mut OCIError,
-                         mode: c_uint) -> c_int;
+                         mode: u32) -> c_int;
 
   /// Creates a user session and begins a user session for a given server.
   pub fn OCISessionBegin(svchp: *mut OCISvcCtx,
                          errhp: *mut OCIError,
                          usrhp: *mut OCISession,// результат
-                         credt: c_uint,
-                         mode: c_uint) -> c_int;
+                         credt: u32,
+                         mode: u32) -> c_int;
   /// Terminates a user session context created by `OCISessionBegin()`
   pub fn OCISessionEnd(svchp: *mut OCISvcCtx,
                        errhp: *mut OCIError,
                        usrhp: *mut OCISession,
-                       mode: c_uint) -> c_int;
+                       mode: u32) -> c_int;
 }

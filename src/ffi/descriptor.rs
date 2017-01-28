@@ -1,7 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
-use std::os::raw::{c_int, c_uint, c_void};
+use std::os::raw::{c_int, c_void};
 use std::ptr;
 use std::slice;
 
@@ -16,7 +16,7 @@ use ffi::native::{OCIDescriptorAlloc, OCIDescriptorFree};// FFI функции
 use ffi::types;
 
 fn close<T>(native: *const T, id: types::Descriptor) {
-  let res = unsafe { OCIDescriptorFree(native as *mut c_void, id as c_uint) };
+  let res = unsafe { OCIDescriptorFree(native as *mut c_void, id as u32) };
   //FIXME: Необходимо получать точную причину ошибки, а для этого нужна ссылка на OCIError.
   // Однако тащить ее в дескриптор нельзя, т.к. данная структура должна быть легкой
   check(res).expect("OCIDescriptorFree");
@@ -34,7 +34,7 @@ impl<'d, T: 'd + DescriptorType> Descriptor<'d, T> {
     let res = unsafe {
       OCIDescriptorAlloc(
         env.env.native() as *const c_void,
-        &mut desc, T::ID as c_uint,
+        &mut desc, T::ID as u32,
         0, 0 as *mut *mut c_void// размер пользовательских данных и указатель на выделенное под них место
       )
     };
@@ -61,8 +61,8 @@ impl<'d, T: 'd + DescriptorType> fmt::Debug for Descriptor<'d, T> {
   }
 }
 impl<'d, T: 'd + DescriptorType> AttrHolder<T> for Descriptor<'d, T> {
-  fn holder_type() -> c_uint {
-    T::ID as c_uint
+  fn holder_type() -> u32 {
+    T::ID as u32
   }
 
   fn native(&self) -> *const T {

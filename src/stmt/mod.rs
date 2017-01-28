@@ -3,7 +3,7 @@
 mod storage;
 
 use std::mem;
-use std::os::raw::{c_int, c_short, c_void, c_uchar, c_uint, c_ushort};
+use std::os::raw::c_void;
 use std::ptr;
 
 use {Connection, DbResult, Result};
@@ -24,11 +24,11 @@ use ffi::types::{DefineMode, CachingMode, ExecuteMode, FetchMode};
 use self::storage::DefineInfo;
 
 //-------------------------------------------------------------------------------------------------
-fn param_get<'d, T: ParamHandle>(handle: *const T, pos: c_uint, err: &Handle<OCIError>) -> DbResult<Descriptor<'d, OCIParam>> {
+fn param_get<'d, T: ParamHandle>(handle: *const T, pos: u32, err: &Handle<OCIError>) -> DbResult<Descriptor<'d, OCIParam>> {
   let mut desc = ptr::null_mut();
   let res = unsafe {
     OCIParamGet(
-      handle as *const c_void, T::ID as c_uint,
+      handle as *const c_void, T::ID as u32,
       err.native_mut(),
       &mut desc, pos
     )
@@ -48,34 +48,34 @@ pub struct Column {
   pub name: String,
   /// Ширина колонки в байтах. Показывает, сколько байт максимум может занимать значение колонки,
   /// а не занимаемый реально данными объем.
-  pub size: usize,
+  pub size: u32,
   /// Количество десятичных цифр для представления чисел для числовых данных.
   /// Количество десятичных цифр, отводимых под год/день для интервальных типов.
-  pub precision: usize,
+  pub precision: u16,
   /// Returns the scale (number of digits to the right of the decimal point) for conversions from packed and zoned decimal input data types.
-  pub scale: usize,
+  pub scale: i8,
 }
 
 impl Column {
   fn new(pos: usize, desc: Descriptor<OCIParam>, err: &Handle<OCIError>) -> Result<Self> {
-    let type_: c_ushort = try!(desc.get_(Attr::DataType, err));
-    let name  = try!(desc.get_str(Attr::Name, err));
+    let type_: u16 = try!(desc.get_(Attr::DataType, err));
+    let name       = try!(desc.get_str(Attr::Name, err));
     //let ischar= try!(desc.get_(Attr::CharUsed, err));
-    //let size : c_uint  = try!(desc.get_(Attr::CharSize, err));
-    let size : c_uint = try!(desc.get_(Attr::DataSize, err));
-    let prec : c_uint = try!(desc.get_(Attr::Precision, err));
+    //let size = try!(desc.get_(Attr::CharSize, err));
+    let size : u32 = try!(desc.get_(Attr::DataSize, err));
+    let prec : u16 = try!(desc.get_(Attr::Precision, err));
     //FIXME: Атрибуты Server и Scale имеют одинаковое представление в C-коде (6), но в Rust-е наличие перечислений с одним значением
     // запрещено.
-    // let scale: c_uint = try!(desc.get_(Attr::Scale, err));
-    let scale: c_uint = try!(desc.get_(Attr::Server, err));
+    // let scale: i8 = try!(desc.get_(Attr::Scale, err));
+    let scale: i8 = try!(desc.get_(Attr::Server, err));
 
     Ok(Column {
       pos: pos,
       name: name,
-      size: size as usize,
-      type_: unsafe { mem::transmute(type_ as u16) },
-      precision: prec as usize,
-      scale: scale as usize,
+      size: size,
+      type_: unsafe { mem::transmute(type_) },
+      precision: prec,
+      scale: scale,
     })
   }
 }
@@ -107,7 +107,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///     нужно использовать при выполнении данной операции
   /// - offset:
   ///   Смещение с буфере со связанными переменными, с которого необходимо начать выполнение 
-  fn execute_impl(&self, count: c_uint, offset: c_uint, mode: ExecuteMode) -> DbResult<()> {
+  fn execute_impl(&self, count: u32, offset: u32, mode: ExecuteMode) -> DbResult<()> {
     let res = unsafe {
       OCIStmtExecute(
         self.conn.context.native_mut(),
@@ -117,7 +117,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         offset,
         ptr::null(),
         ptr::null_mut(),
-        mode as c_uint
+        mode as u32
       )
     };
     return self.error().check(res);
@@ -129,20 +129,20 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Количество строк, которые нужно получить из текущей позиции курсора
   /// - index:
   ///   Для режимов `Absolute` и `Relative` определяет номер извлекаемого элемента, в остальных случаях игнорируется.
-  fn fetch(&self, count: c_uint, mode: FetchMode, index: c_int) -> DbResult<()> {
+  fn fetch(&self, count: u32, mode: FetchMode, index: i32) -> DbResult<()> {
     let res = unsafe {
       OCIStmtFetch2(
         self.native as *mut OCIStmt,
         self.error().native_mut(),
         count,
-        mode as c_ushort,
-        index as c_int,
+        mode as u16,
+        index,
         0 // Неясно, что такое
       )
     };
     return self.error().check(res);
   }
-  fn bind_by_pos(&self, pos: c_uint, value: *mut c_void, size: c_int, dty: Type) -> DbResult<Handle<OCIBind>> {
+  fn bind_by_pos(&self, pos: u32, value: *mut c_void, size: i32, dty: Type) -> DbResult<Handle<OCIBind>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByPos(
@@ -151,7 +151,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         self.error().native_mut(),
         pos,
         // Указатель на данные для извлечения результата, его размер и тип
-        value, size, dty as c_ushort,
+        value, size, dty as u16,
         ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
@@ -162,16 +162,16 @@ impl<'conn, 'key> Statement<'conn, 'key> {
 
     Handle::from_ptr(res, handle, self.error().native_mut())
   }
-  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: c_int, dty: Type) -> DbResult<Handle<OCIBind>> {
+  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: i32, dty: Type) -> DbResult<Handle<OCIBind>> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByName(
         self.native as *mut OCIStmt,
         &mut handle,
         self.error().native_mut(),
-        placeholder.as_ptr() as *const c_uchar, placeholder.len() as c_int,
+        placeholder.as_ptr(), placeholder.len() as i32,
         // Указатель на данные для извлечения результата, его размер и тип
-        value, size, dty as c_ushort,
+        value, size, dty as u16,
         ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
@@ -195,7 +195,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Переменная, в которую будет записан признак того, что в столбце содержится `NULL`.
   /// - out_size:
   ///   Количество байт, записанное в буфер. Не превышает его длину
-  fn define(&self, pos: usize, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> DbResult<()> {
+  fn define(&self, pos: u32, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> DbResult<()> {
     let res = unsafe {
       OCIDefineByPos(
         self.native as *mut OCIStmt,
@@ -204,13 +204,13 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         &mut ptr::null_mut(),
         self.error().native_mut(),
         // В API оракла нумерация с 1, мы же придерживаемся традиционной с 0
-        (pos + 1) as c_uint,
+        pos + 1,
         // Указатель на данные для размещения результата, его размер и тип
-        buf.as_ptr(), buf.capacity(), dty as c_ushort,
-        &mut buf.is_null as *mut c_short as *mut c_void,// Массив индикаторов (null/не null)
+        buf.as_ptr(), buf.capacity(), dty as u16,
+        &mut buf.is_null as *mut i16 as *mut c_void,// Массив индикаторов (null/не null)
         buf.size_mut(),// Массив длин для каждого значения, которое извлекли из базы
-        &mut buf.ret_code as *mut c_ushort,// Массив для column-level return codes
-        mode as c_uint
+        &mut buf.ret_code,// Массив для column-level return codes
+        mode as u32
       )
     };
     self.error().check(res)
@@ -218,7 +218,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// Получает количество столбцов, извлеченный в `SELECT`-выражении. Необходимо вызывать после выполнения `SELECT`-запроса,
   /// т.к. до этого момента? или в случае выполнения не `SELECT`-запроса, эта информация недоступна.
   #[inline]
-  fn param_count(&self) -> DbResult<c_uint> {
+  fn param_count(&self) -> DbResult<u32> {
     self.get_(Attr::ParamCount, self.error())
   }
   /// Получает количество cтрок, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
@@ -233,7 +233,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// - pos:
   ///   Номер столбца, для которого извлекается информация. Нумерация с 0, в отличие от API оракла, где нумерация идет с 1.
   #[inline]
-  fn param_get(&self, pos: c_uint) -> DbResult<Descriptor<OCIParam>> {
+  fn param_get(&self, pos: u32) -> DbResult<Descriptor<OCIParam>> {
     param_get(self.native, pos + 1, self.error())
   }
 
@@ -342,15 +342,17 @@ impl<'conn, 'key> Statement<'conn, 'key> {
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
   fn drop(&mut self) {
-    let keyPtr = self.key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
-    let keyLen = self.key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
+    let keyPtr = self.key.map_or(0 as *const u8, |x| x.as_ptr());
+    let keyLen = self.key.map_or(0 as u32      , |x| x.len() as u32);
     let res = unsafe { OCIStmtRelease(self.native as *mut OCIStmt, self.error().native_mut(), keyPtr, keyLen, 0) };
-    self.error().check(res).expect("OCIStmtRelease");
+
+    // Невозможно делать панику отсюда, т.к. приложение из-за этого крашится
+    let _ = self.error().check(res);//.expect("OCIStmtRelease");
   }
 }
 impl<'conn, 'key> AttrHolder<OCIStmt> for Statement<'conn, 'key> {
-  fn holder_type() -> c_uint {
-    ::ffi::types::Handle::Stmt as c_uint
+  fn holder_type() -> u32 {
+    ::ffi::types::Handle::Stmt as u32
   }
   fn native(&self) -> *const OCIStmt {
     self.native
@@ -360,18 +362,18 @@ impl<'conn, 'key> AttrHolder<OCIStmt> for Statement<'conn, 'key> {
 impl<'conn, 'key> super::StatementPrivate for Statement<'conn, 'key> {
   fn new<'c, 'k>(conn: &'c Connection<'c>, sql: &str, key: Option<&'k str>, syntax: Syntax) -> DbResult<Statement<'c, 'k>> {
     let mut stmt = ptr::null_mut();
-    let keyPtr = key.map_or(0 as *const c_uchar, |x| x.as_ptr() as *const c_uchar);
-    let keyLen = key.map_or(0 as c_uint        , |x| x.len()  as c_uint);
+    let keyPtr = key.map_or(0 as *const u8, |x| x.as_ptr());
+    let keyLen = key.map_or(0 as u32      , |x| x.len() as u32);
     let res = unsafe {
       OCIStmtPrepare2(
         conn.context.native_mut(),
         &mut stmt as *mut *mut OCIStmt,
         conn.error().native_mut(),
         // Текст SQL запроса
-        sql.as_ptr() as *const c_uchar, sql.len() as c_uint,
+        sql.as_ptr(), sql.len() as u32,
         // Ключ кеширования, по которому достанется запрос, если он был закеширован
         keyPtr, keyLen,
-        syntax as c_uint, CachingMode::Default as c_uint
+        syntax as u32, CachingMode::Default as u32
       )
     };
     return match res {
@@ -409,7 +411,7 @@ impl<'rs> Row<'rs> {
     for c in &rs.columns {
       data.push(try!(DefineInfo::new(rs.stmt, c)));
       // unwrap делать безопасно, т.к. мы только что вставили в массив данные
-      try!(rs.stmt.define(c.pos, c.type_, data.last_mut().unwrap(), Default::default()));
+      try!(rs.stmt.define(c.pos as u32, c.type_, data.last_mut().unwrap(), Default::default()));
     }
 
     Ok(Row { rs: rs, data: data, info: None })

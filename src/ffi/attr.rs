@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::os::raw::{c_void, c_uchar, c_uint};
+use std::os::raw::c_void;
 use std::mem;
 use std::ptr;
 use std::slice;
@@ -17,7 +17,7 @@ use ffi::native::{OCIAttrGet, OCIAttrSet};// FFI функции
 /// Типаж, позволяющий получать и устанавливать атрибуты тем структурам, которые его реализуют.
 pub trait AttrHolder<T> {
   /// Тип владельца атрибутов
-  fn holder_type() -> c_uint;
+  fn holder_type() -> u32;
 
   fn native(&self) -> *const T;
 
@@ -29,19 +29,19 @@ pub trait AttrHolder<T> {
   }
 
   /// Получает значение указанного атрибута из объекта-владельца атрибутов
-  unsafe fn get(&self, value: *mut c_void, size: &mut c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
+  unsafe fn get(&self, value: *mut c_void, size: &mut u32, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let res = OCIAttrGet(
       self.native() as *const c_void, Self::holder_type(),
-      value, size, attrtype as c_uint,
+      value, size, attrtype as u32,
       err.native_mut()
     );
     return err.check(res);
   }
-  fn set(&mut self, value: *mut c_void, size: c_uint, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
+  fn set(&mut self, value: *mut c_void, size: u32, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let res = unsafe {
       OCIAttrSet(
         self.native_mut() as *mut c_void, Self::holder_type(),
-        value, size, attrtype as c_uint,
+        value, size, attrtype as u32,
         err.native_mut()
       )
     };
@@ -57,9 +57,9 @@ pub trait AttrHolder<T> {
     Ok(res)
   }
   fn get_str(&self, attrtype: types::Attr, err: &Handle<OCIError>) -> Result<String> {
-    let mut len: c_uint = 0;
-    let mut str: *mut c_uchar = ptr::null_mut();
-    let ptr = &mut str as *mut *mut c_uchar;
+    let mut len: u32 = 0;
+    let mut str: *mut u8 = ptr::null_mut();
+    let ptr = &mut str as *mut *mut u8;
     unsafe {
       try!(self.get(ptr as *mut c_void, &mut len, attrtype, err));
       //FIXME: Нужно избавиться от паники, должна возвращаться ошибка
@@ -71,11 +71,11 @@ pub trait AttrHolder<T> {
 //-------------------------------------------------------------------------------------------------
   fn set_<I: Integer>(&mut self, value: I, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
     let ptr = &value as *const I;
-    self.set(ptr as *mut c_void, mem::size_of::<I>() as c_uint, attrtype, err)
+    self.set(ptr as *mut c_void, mem::size_of::<I>() as u32, attrtype, err)
   }
   /// Устанавливает строковый атрибут хендлу
   fn set_str(&mut self, value: &str, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {
-    self.set(value.as_ptr() as *mut c_void, value.len() as c_uint, attrtype, err)
+    self.set(value.as_ptr() as *mut c_void, value.len() as u32, attrtype, err)
   }
   /// Устанавливает хендл-атрибут хендлу
   fn set_handle<U: HandleType>(&mut self, value: &Handle<U>, attrtype: types::Attr, err: &Handle<OCIError>) -> DbResult<()> {

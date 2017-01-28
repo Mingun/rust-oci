@@ -2,7 +2,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/handle-and-descriptor-functions.htm#LNOCI152
 
-use std::os::raw::{c_int, c_void, c_uint};
+use std::os::raw::{c_int, c_void};
 
 use ffi::native::OCIError;// FFI типы
 
@@ -25,8 +25,8 @@ extern "C" {
   ///   Returns a pointer to the user memory of size xtramem_sz allocated by the call for the user.
   pub fn OCIHandleAlloc(parenth: *const c_void,
                         hndlpp: *mut *mut c_void, // результат
-                        htype: c_uint,
-                        xtramem_sz: c_uint,
+                        htype: u32,
+                        xtramem_sz: usize,
                         usrmempp:  *mut *mut c_void // результат
                        ) -> c_int;
   /// This call explicitly deallocates a handle.
@@ -49,7 +49,7 @@ extern "C" {
   /// - htype:
   ///   Specifies the type of storage to be freed. The handles are described in Table 2-1.
   pub fn OCIHandleFree(hndlp: *mut c_void,
-                       htype: c_uint) -> c_int;
+                       htype: u32) -> c_int;
 
   /// Allocates storage to hold descriptors or LOB locators.
   ///
@@ -69,8 +69,8 @@ extern "C" {
   ///   Specifies the type of descriptor or LOB locator to be allocated.
   pub fn OCIDescriptorAlloc(parenth: *const c_void,
                             descpp: *mut *mut c_void, 
-                            dtype: c_uint,
-                            xtramem_sz: c_uint,
+                            dtype: u32,
+                            xtramem_sz: usize,
                             usrmempp: *mut *mut c_void) -> c_int;
   /// Deallocates a previously allocated descriptor.
   ///
@@ -88,7 +88,7 @@ extern "C" {
   /// - type:
   ///   Specifies the type of storage to be freed.
   pub fn OCIDescriptorFree(descp: *mut c_void,
-                           dtype: c_uint) -> c_int;
+                           dtype: u32) -> c_int;
 
   /// Returns a descriptor of a parameter specified by position in the describe handle or statement handle.
   ///
@@ -110,10 +110,10 @@ extern "C" {
   /// - pos:
   ///   Position number in the statement handle or describe handle. A parameter descriptor is returned for this position.
   pub fn OCIParamGet(hndlp: *const c_void,
-                     htype: c_uint,
+                     htype: u32,
                      errhp: *mut OCIError,
                      parmdpp:  *mut *mut c_void,
-                     pos: c_uint) -> c_int;
+                     pos: u32) -> c_int;
   /// Sets a complex object retrieval (COR) descriptor into a COR handle.
   ///
   /// # Comments
@@ -134,24 +134,24 @@ extern "C" {
   /// - pos:
   ///   Position number.
   pub fn OCIParamSet(hndlp: *mut c_void,
-                     htype: c_uint,
+                     htype: u32,
                      errhp: *mut OCIError,
                      dscp: *const c_void,
-                     dtyp: c_uint,
-                     pos: c_uint);
+                     dtyp: u32,
+                     pos: u32);
 
   /// Gets the value of an attribute of a handle.
   pub fn OCIAttrGet(trgthndlp: *const c_void,
-                    trghndltyp: c_uint,
+                    trghndltyp: u32,
                     attributep: *mut c_void,
-                    sizep: *mut c_uint,
-                    attrtype: c_uint,
+                    sizep: *mut u32,
+                    attrtype: u32,
                     errhp: *mut OCIError) -> c_int;
   /// Sets the value of an attribute of a handle or a descriptor.
   pub fn OCIAttrSet(trgthndlp: *mut c_void,
-                    trghndltyp: c_uint,
+                    trghndltyp: u32,
                     attributep: *mut c_void,
-                    size: c_uint,
-                    attrtype: c_uint,
+                    size: u32,
+                    attrtype: u32,
                     errhp: *mut OCIError) -> c_int;
 }

@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI167
 
-use std::os::raw::{c_int, c_void, c_uchar, c_uint};
+use std::os::raw::{c_int, c_void};
 
 use DbResult;
 use version::Version;
@@ -54,7 +54,7 @@ pub fn server_version<T: VersionHandle>(hndl: &Handle<T>, err: &Handle<OCIError>
       hndl.native_mut() as *mut c_void,
       err.native_mut(),
       &mut buf, 1,
-      T::ID as c_uchar,
+      T::ID as u8,
       &mut ver
     )
   };
@@ -65,7 +65,7 @@ pub fn server_version<T: VersionHandle>(hndl: &Handle<T>, err: &Handle<OCIError>
 }
 /// Распаковывает число с версией сервера, которую вернул OCI вызов в структуру с версией
 #[inline]
-fn to_version(v: c_uint) -> Version {
+fn to_version(v: u32) -> Version {
   Version {
     major:  ((v >> 24) & 0x000000FF) as i32,
     minor:  ((v >> 20) & 0x0000000F) as i32,
@@ -132,12 +132,12 @@ extern "C" {
   ///
   /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17287
   pub fn OCIErrorGet(hndlp: *mut c_void,
-                     recordno: c_uint,
-                     sqlstate: *mut c_uchar,// устарел с версии 8.x
-                     errcodep: *mut c_int,  // возвращаемый код ошибки
-                     bufp: *mut c_uchar,    // возвращаемое сообщение об ошибке
-                     bufsiz: c_uint,
-                     htype: c_uint) -> c_int;
+                     recordno: u32,
+                     sqlstate: *mut u8, // устарел с версии 8.x
+                     errcodep: *mut i32,// возвращаемый код ошибки
+                     bufp: *mut u8,     // возвращаемое сообщение об ошибке
+                     bufsiz: u32,
+                     htype: u32) -> c_int;
 
   /// Returns the 5 digit Oracle Database version number of the client library at run time.
   ///
@@ -152,10 +152,10 @@ extern "C" {
   /// http://docs.oracle.com/database/122/LNOCI/miscellaneous-functions.htm#LNOCI17293
   fn OCIServerRelease(hndlp: *mut c_void,
                       errhp: *mut OCIError,
-                      bufp: *mut c_uchar,
-                      bufsz: c_uint,
-                      hndltype: c_uchar,
-                      version: *mut c_uint) -> c_int;
+                      bufp: *mut u8,
+                      bufsz: u32,
+                      hndltype: u8,
+                      version: *mut u32) -> c_int;
 
   /// Performs an immediate (asynchronous) termination of any currently executing OCI function that is associated with a server.
   ///

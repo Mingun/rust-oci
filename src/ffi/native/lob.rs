@@ -4,7 +4,7 @@
 //! [1]: https://docs.oracle.com/database/122/LNOCI/lob-functions.htm#LNOCI162
 
 use std::io;
-use std::os::raw::{c_int, c_void, c_char, c_uchar, c_uint, c_ulonglong, c_ushort};
+use std::os::raw::{c_int, c_void};
 use std::ptr;
 
 use {Connection, DbResult};
@@ -445,8 +445,8 @@ impl<'conn> LobImpl<'conn, File> {
         &mut self.locator as *mut *mut File as *mut *mut c_void,
         //FIXME: Данные строки могут быть в UTF-16, если при вызове OCIEnvNlsCreate() использовалась она
         // Длина срезов возвращается, как и положено, в байтах
-        directory.as_ptr() as *const c_char, directory.len() as u16,
-        filename.as_ptr()  as *const c_char, filename.len()  as u16
+        directory.as_ptr(), directory.len() as u16,
+        filename.as_ptr() , filename.len()  as u16
       )
     };
     self.conn.error().check(res)
@@ -494,15 +494,15 @@ impl<'conn, L: OCILobLocator> Eq for LobImpl<'conn, L> {}
 pub type OCICallbackLobRead2  = extern "C" fn(ctxp: *mut c_void,
                                               bufp: *const c_void,
                                               lenp: u64,
-                                              piecep: u8,
+                                              piece: u8,
                                               changed_bufpp: *mut *mut c_void,
-                                              changed_lenp: *mut u64);
+                                              changed_lenp: *mut u64) -> i32;
 pub type OCICallbackLobWrite2 = extern "C" fn(ctxp: *mut c_void,
                                               bufp: *mut c_void,
                                               lenp: *mut u64,
                                               piecep: *mut u8,
                                               changed_bufpp: *mut *mut c_void,
-                                              changed_lenp: *mut u64);
+                                              changed_lenp: *mut u64) -> i32;
 
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
@@ -532,36 +532,36 @@ extern "C" {
   /// This function can be used for LOBs of size greater than or less than 4 GB.
   pub fn OCILobArrayRead(svchp: *mut OCISvcCtx,
                          errhp: *mut OCIError,
-                         array_iter: *mut c_uint,
+                         array_iter: *mut u32,
                          // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                          locp_arr: *mut *mut c_void/*OCILobLocator*/,
-                         byte_amt_arr: *mut c_ulonglong,
-                         char_amt_arr: *mut c_ulonglong,
-                         offset_arr: *mut c_ulonglong,
+                         byte_amt_arr: *mut u64,
+                         char_amt_arr: *mut u64,
+                         offset_arr: *mut u64,
                          bufp_arr: *mut *mut c_void,
-                         bufl_arr: c_ulonglong,
-                         piece: c_uchar,
+                         bufl_arr: u64,
+                         piece: u8,
                          ctxp: *mut c_void,
                          cbfp: Option<types::OCICallbackLobArrayRead>,
-                         csid: c_ushort,
-                         csfrm: c_uchar) -> c_int;
+                         csid: u16,
+                         csfrm: u8) -> c_int;
   /// Writes LOB data for multiple locators in one round-trip.
   /// This function can be used for LOBs of size greater than or less than 4 GB.
   pub fn OCILobArrayWrite(svchp: *mut OCISvcCtx,
                           errhp: *mut OCIError,
-                          array_iter: *mut c_uint,
+                          array_iter: *mut u32,
                           // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                           locp_arr: *mut *mut c_void/*OCILobLocator*/,
-                          byte_amt_arr: *mut c_ulonglong,
-                          char_amt_arr: *mut c_ulonglong,
-                          offset_arr: *mut c_ulonglong,
+                          byte_amt_arr: *mut u64,
+                          char_amt_arr: *mut u64,
+                          offset_arr: *mut u64,
                           bufp_arr: *mut *mut c_void,
-                          bufl_arr: *mut c_ulonglong,
-                          piece: c_uchar,
+                          bufl_arr: *mut u64,
+                          piece: u8,
                           ctxp: *mut c_void,
                           cbfp: Option<types::OCICallbackLobArrayWrite>,
-                          csid: c_ushort,
-                          csfrm: c_uchar) -> c_int;
+                          csid: u16,
+                          csfrm: u8) -> c_int;
 
   /// Assigns one LOB or BFILE locator to another.
   fn OCILobLocatorAssign(svchp: *mut OCISvcCtx,
@@ -1179,9 +1179,9 @@ extern "C" {
                        errhp: *mut OCIError,
                        // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                        filepp: *mut *mut c_void/*OCILobLocator*/,
-                       dir_alias: *const c_char,
+                       dir_alias: *const u8,
                        d_length: u16,
-                       filename: *const c_char,
+                       filename: *const u8,
                        f_length: u16) -> c_int;
   /// Tests to see if the `BFILE` exists on the server's operating system.
   ///

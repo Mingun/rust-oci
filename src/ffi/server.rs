@@ -1,4 +1,3 @@
-use std::os::raw::{c_int, c_uint};
 use std::ptr;
 
 use {Environment, DbResult};
@@ -31,8 +30,8 @@ impl<'env> Server<'env> {
     let res = unsafe {
       OCIServerAttach(
         server.native_mut(), env.error.native_mut(),
-        ptr, len as c_int,
-        mode as c_uint
+        ptr, len as i32,
+        mode as u32
       )
     };
     return match res {
@@ -78,7 +77,7 @@ impl<'env> Drop for Server<'env> {
       OCIServerDetach(
         self.handle.native_mut(),
         self.error().native_mut(),
-        self.mode as c_uint
+        self.mode as u32
       )
     };
     self.error().check(res).expect("OCIServerDetach");

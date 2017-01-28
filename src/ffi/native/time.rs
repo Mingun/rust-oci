@@ -3,7 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/oci-date-datetime-and-interval-functions.htm
 
-use std::os::raw::{c_char, c_uchar, c_short, c_int, c_uint, c_void};
+use std::os::raw::{c_int, c_void};
 
 use DbResult;
 use convert::OCINumber;
@@ -124,7 +124,7 @@ descriptor!(OCIInterval, IntervalDS);
 
 /// Получает из указателя на интервал Oracle количество лет и месяцев
 pub fn get_year_month(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalYM) -> DbResult<[c_int; 2]> {
-  let mut time: [c_int; 2] = [0; 2];
+  let mut time = [0i32; 2];
   let res = unsafe {
     OCIIntervalGetYearMonth(
       hndl.native_mut() as *mut c_void,
@@ -141,7 +141,7 @@ pub fn get_year_month(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interva
 }
 /// Получает из указателя на интервал Oracle количество дней, часов, минут, секунд и наносекунд, которое он представляет
 pub fn get_day_second(hndl: &Handle<OCISession>, err: &Handle<OCIError>, interval: &IntervalDS) -> DbResult<[c_int; 5]> {
-  let mut time: [c_int; 5] = [0; 5];
+  let mut time = [0i32; 5];
   let res = unsafe {
     OCIIntervalGetDaySecond(
       hndl.native_mut() as *mut c_void,
@@ -214,9 +214,9 @@ extern "C" {
                         err: *mut OCIError,
                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                         datetime: *const c_void/*OCIDateTime*/,
-                        year: *mut c_short,
-                        month: *mut c_uchar,
-                        day: *mut c_uchar) -> c_int;
+                        year: *mut i16,
+                        month: *mut u8,
+                        day: *mut u8) -> c_int;
 
   /// Gets the time (hour, min, second, fractional second) of a datetime value.
   ///
@@ -248,10 +248,10 @@ extern "C" {
                         err: *mut OCIError,
                         // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                         datetime: *mut c_void/*OCIDateTime*/,
-                        hour: *mut c_uchar,
-                        min: *mut c_uchar,
-                        sec: *mut c_uchar,
-                        fsec: *mut c_uint) -> c_int;
+                        hour: *mut u8,
+                        min: *mut u8,
+                        sec: *mut u8,
+                        fsec: *mut u32) -> c_int;
   /// Gets the time zone (hour, minute) portion of a datetime value.
   ///
   /// # Parameters
@@ -278,8 +278,8 @@ extern "C" {
                                   err: *mut OCIError,
                                   // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно несколько разных типов enum-ов
                                   datetime: *const c_void/*OCIDateTime*/,
-                                  hour: *mut c_char,
-                                  min: *mut c_char) -> c_int;
+                                  hour: *mut i8,
+                                  min: *mut i8) -> c_int;
 
 //-------------------------------------------------------------------------------------------------
   /// Gets values of day, hour, minute, and second from an interval.
@@ -307,11 +307,11 @@ extern "C" {
   /// `OCI_SUCCESS`; or `OCI_INVALID_HANDLE`, if `err` is a `NULL` pointer.
   fn OCIIntervalGetDaySecond(hndl: *mut c_void,
                              err: *mut OCIError,
-                             dy: *mut c_int,
-                             hr: *mut c_int,
-                             mm: *mut c_int,
-                             ss: *mut c_int,
-                             fsec: *mut c_int,
+                             dy: *mut i32,
+                             hr: *mut i32,
+                             mm: *mut i32,
+                             ss: *mut i32,
+                             fsec: *mut i32,
                              // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно 2 разных типа enum-а
                              interval: *const c_void/*OCIInterval*/) -> c_int;
 
@@ -334,8 +334,8 @@ extern "C" {
   /// `OCI_SUCCESS`; or `OCI_INVALID_HANDLE`, if `err` is a `NULL` pointer.
   fn OCIIntervalGetYearMonth(hndl: *mut c_void,
                              err: *mut OCIError,
-                             yr: *mut c_int,
-                             mnth: *mut c_int,
+                             yr: *mut i32,
+                             mnth: *mut i32,
                              // Мапим на void*, т.к. использовать типажи нельзя, а нам нужно 2 разных типа enum-а
                              interval: *const c_void/*OCIInterval*/) -> c_int;
   /// Converts an interval to an Oracle NUMBER.
