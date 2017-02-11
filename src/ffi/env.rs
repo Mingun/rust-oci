@@ -1,7 +1,6 @@
 //! Содержит реализацию автоматически закрываемого хендла окружения
 use std::fmt;
 use std::marker::PhantomData;
-use std::os::raw::c_void;
 use std::ptr;
 
 use DbResult;
@@ -31,9 +30,9 @@ impl<'e> Env<'e> {
       OCIEnvNlsCreate(
         &mut handle, // сюда записывается результат
         params.mode as u32,
-        0 as *mut c_void, // Контекст для функций управления памятью.
+        ptr::null_mut(), // Контекст для функций управления памятью.
         None, None, None, // Функции управления памятью
-        0, 0 as *mut *mut c_void,// размер пользовательских данных и указатель на выделенное под них место
+        0, ptr::null_mut(),// размер пользовательских данных и указатель на выделенное под них место
         // Параметры локализации для типов CHAR и NCHAR
         params.charset as u16, params.ncharset as u16
       )
