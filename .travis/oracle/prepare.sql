@@ -170,6 +170,11 @@ insert into type_lob values (1,
   '00010203040506070809',
   bfilename('TEST_BFILES', 'bfile')
 );
+insert into type_lob values (2,
+  '𐌼12𐌰',
+  '𐌼12𐌰',
+  null, null
+);
 ---------------------------------------------------------------------------------------------------
 create table type_specific (
   id number(2) not null primary key,-- номер теста
