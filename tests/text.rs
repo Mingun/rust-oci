@@ -38,7 +38,6 @@
 //! );
 //! ```
 
-#![feature(repeat_str)]
 extern crate oci;
 
 use oci::Environment;
