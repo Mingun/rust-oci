@@ -1,16 +1,15 @@
 //! Содержит определение подготовленных выражений, которые используются для эффективного исполнения запросов,
 //! и структур, связанных с ними.
+pub mod index;
+pub mod query;
 mod storage;
 
-use std::fmt;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use convert::{BindInfo, FromDB};
-use error::{self, Error};
-use error::DbError::{Info, NoData, Fault};
+use convert::BindInfo;
 use types::{Type, Syntax, StatementType};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
@@ -22,7 +21,9 @@ use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, 
 use ffi::types::Attr;
 use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
 
+use self::index::BindIndex;
 use self::storage::DefineInfo;
+use self::query::RowSet;
 
 //-------------------------------------------------------------------------------------------------
 fn param_get<'d, T: ParamHandle>(handle: *const T, pos: u32, err: &Handle<OCIError>) -> DbResult<Descriptor<'d, OCIParam>> {
@@ -425,191 +426,7 @@ impl<'conn, 'key> super::StatementPrivate for Statement<'conn, 'key> {
     };
   }
 }
-
-/// Результат `SELECT`-выражения, представляющий одну строчку с данными из всей выборки.
-///
-/// Является владельцем всей памяти, выделенной под хранение объектов, получаемых из базы
-/// данных. Существуют 2 типа объектов -- те, которые после выполнения запросов полностью
-/// материализуются на клиенте и хранятся в данном классе, и те, которые материализуются
-/// не полностью. В этом случае в данном классе хранится лишь локатор, по которому можно
-/// получить данные из соединения в дальнейшем.
-///
-/// Ко второму типу относятся все столбцы с временными метками (`TIMESTAMP ...`, но не
-/// `DATE`) и столбцы с LOB-данными (`CLOB`, `NCLOB`, `BLOB`, `BFILE`).
-#[derive(Debug)]
-pub struct Row<'rs> {
-  /// Выборка, из которой получен данный объект.
-  rs: &'rs RowSet<'rs>,
-  /// Массив данных для каждой колонки.
-  data: Vec<DefineInfo<'rs>>,
-  /// Диагностическая информация, полученная при извлечении данных, если есть.
-  /// Например, может содержать информацию о том, что значение колонки было получено не полностью
-  /// из-за недостаточного размера принимающего буфера.
-  pub info: Option<Vec<error::Info>>,
-}
-impl<'rs> Row<'rs> {
-  fn new(rs: &'rs RowSet) -> Result<Self> {
-    let mut data: Vec<DefineInfo> = Vec::with_capacity(rs.columns.len());
-
-    for c in &rs.columns {
-      data.push(try!(DefineInfo::new(rs.stmt, c)));
-      // unwrap делать безопасно, т.к. мы только что вставили в массив данные
-      try!(rs.stmt.define(c.pos as u32, c.type_, data.last_mut().unwrap(), Default::default()));
-    }
-
-    Ok(Row { rs: rs, data: data, info: None })
-  }
-  /// Получает описание столбца списка выбора результата `SELECT`-выражения по указанному индексу.
-  #[inline]
-  pub fn column<I: RowIndex>(&self, index: I) -> Result<&Column> {
-    match index.idx(self.rs) {
-      Some(idx) => Ok(&self.rs.columns()[idx]),
-      None => Err(Error::InvalidColumn),
-    }
-  }
-  /// Извлекает значение указанного типа из строки результата по заданному индексу.
-  ///
-  /// Возвращает ошибку в случае, если индекс некорректен или конвертация данных по указанному
-  /// индексу невозможно в запрошенный тип, потому что его реализация типажа `FromDB` не поддерживает
-  /// это.
-  ///
-  /// Если в столбце находится `NULL`, то возвращает `None`. Конвертация с помощью типажа `FromDB`
-  /// выполняется только в том случае, если в базе находится не `NULL` значение.
-  ///
-  /// К сожалению, для типа `Row` невозможно реализовать типаж `Index`, чтобы использовать синтаксический сахар в виде
-  /// получения результата индексацией квадратными скобками (`row[...]`). Это невозможно по двум причинам:
-  ///
-  /// 1. Компилятор не может вывести возвращаемый тип, т.к. типаж `Index` определяет его, как ассоциированный тип, а не
-  ///    тип-параметр типажа. Таким образом, для возвращаемого типа невозможно указать ограничение на допустимые значения.
-  /// 2. Даже если бы удалось победить первую проблему, типаж `Index` предусматривает возвращение ссылки на значение
-  ///    вместо самого значения. Однако в случае реализации `get()` возвращаемое значение конструируется в момент получения,
-  ///    таким образом, невозможно отдать ссылку на него, не сохранив предварительно внутри структуры `Row`
-  pub fn get<T: FromDB<'rs>, I: RowIndex>(&self, index: I) -> Result<Option<T>> {
-    let col = try!(self.column(index));
-    self.data[col.pos].to(col.type_, self.rs.stmt.connection())
-  }
-}
-/// Ленивый набор результатов, полученный при выполнении `SELECT` выражения. Реально данные извлекаются при итерации по набору,
-/// именно поэтому метод [`query()`][1], возвращающий их, является `mut` методом.
-///
-/// В настоящий момент при итерации по набору получается одна строка за раз, с выполнением обращения к серверу.
-///
-/// [1]: ./struct.Statement.html#method.query
-#[derive(Debug)]
-pub struct RowSet<'stmt> {
-  /// Выражение, выполнение которого дало данный набор результатов
-  stmt: &'stmt Statement<'stmt, 'stmt>,
-  /// Список колонок, которые извлекали из базы данных
-  columns: Vec<Column>,
-}
-impl<'stmt> RowSet<'stmt> {
+trait RowSetPrivate<'stmt> : Sized {
   /// Создает набор из выражения. Запоминает описание столбцов выражения
-  #[inline]
-  fn new(stmt: &'stmt Statement) -> Result<Self> {
-    Ok(RowSet { stmt: stmt, columns: try!(stmt.columns()) })
-  }
-  /// Получает выражение, которое породило данный набор результатов.
-  #[inline]
-  pub fn statement(&self) -> &Statement<'stmt, 'stmt> {
-    self.stmt
-  }
-  /// Получает список столбцов, которые содержатся в данном результате `SELECT`-а.
-  #[inline]
-  pub fn columns(&self) -> &[Column] {
-    &self.columns
-  }
-  /// Продвигает итератор по текущему набору вперед, получает следующий элемент или `None`, если элементов больше не осталось.
-  /// Поседение аналогично обычному итератору за тем исключением, что при ошибке извлечения данных возвращается `Err`, а не
-  /// выполняется паника текущего потока.
-  ///
-  /// # OCI вызовы
-  /// В настоящий момент при каждом вызове выполняется OCI-вызов [`OCIStmtFetch2()`][1], но это будет изменено в дальнейшем для выполнения
-  /// пакетных чтений сразу же по несколько элементов (размер пакета будет конфигурируемым).
-  ///
-  /// # Запросы к серверу (1)
-  /// Каждый вызов данной функции приводит к одному запросу к серверу.
-  ///
-  /// [1]: http://docs.oracle.com/database/122/LNOCI/statement-functions.htm#LNOCI17165
-  pub fn next(&'stmt self) -> Result<Option<Row<'stmt>>> {
-    // Подготавливаем место в памяти для извлечения данных.
-    // TODO: его можно переиспользовать, незачем создавать каждый раз.
-    let mut r = Row::new(self).expect("Row::new failed");
-    match self.stmt.fetch(1, Default::default(), 0) {
-      Ok(_) => Ok(Some(r)),
-      Err(Info(data)) => {
-        r.info = Some(data);
-        Ok(Some(r))
-      }
-      Err(NoData) => Ok(None),
-      // ORA-01002: fetch out of sequence - если перезапустить итератор, из которого вычитаны все данные, вернется данная ошибка
-      Err(Fault(error::Info { code: 1002, .. })) => Ok(None),
-      Err(e) => Err(e.into()),
-    }
-  }
-}
-impl<'stmt> Iterator for &'stmt RowSet<'stmt> {
-  type Item = Row<'stmt>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    RowSet::next(self).expect("`fetch` failed")
-  }
-}
-
-/// Типаж, позволяющий указать типы, которые можно использовать для индексации набора полей, полученных из базы данных,
-/// для извлечения данных. Наиболее типичное применение -- использование индекса или имени колонки для извлечения данных.
-/// Благодаря типажу для этого можно использовать одну и ту же функцию [`get()`][get].
-///
-/// [get]: ./struct.Row.html#method.get
-pub trait RowIndex {
-  /// Превращает объект в индекс, по которому можно извлечь данные, или в `None`, если нет индекса, соответствующего
-  /// данному объекту. В этом случае при получении данных из столбца метод [`get()`][get] вернет ошибку [`InvalidColumn`][err].
-  ///
-  /// [get]: ./struct.Row.html#method.get
-  /// [err]: ../error/enum.Error.html#variant.InvalidColumn
-  fn idx(&self, rs: &RowSet) -> Option<usize>;
-}
-
-impl RowIndex for usize {
-  fn idx(&self, rs: &RowSet) -> Option<usize> {
-    if *self >= rs.columns().len() {
-      return None;
-    }
-    Some(*self)
-  }
-}
-impl<'a> RowIndex for &'a str {
-  fn idx(&self, rs: &RowSet) -> Option<usize> {
-    rs.columns().iter().position(|x| x.name == *self)
-  }
-}
-
-/// Обобщенный индекс связываемых параметров. Позволяет связывать параметры как по позиции,
-/// так и по имени, используя один и тот же вызов [`bind`][1], перегруженный по принимаемым аргументам.
-///
-/// [1]: ./struct.Statement.html#method.bind
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BindIndex<'a> {
-  /// Связывание осуществляется по имени переменной.
-  Name(&'a str),
-  /// Связывание осуществляется по позиции переменной.
-  Index(usize)
-}
-impl<'a> fmt::Display for BindIndex<'a> {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match *self {
-      BindIndex::Name(name) => write!(f, "{}", name),
-      BindIndex::Index(pos) => write!(f, "{}", pos),
-    }
-  }
-}
-
-impl<'a> From<usize> for BindIndex<'a> {
-  fn from(t: usize) -> Self {
-    BindIndex::Index(t)
-  }
-}
-impl<'a> From<&'a str> for BindIndex<'a> {
-  fn from(t: &'a str) -> Self {
-    BindIndex::Name(t)
-  }
+  fn new(stmt: &'stmt Statement) -> Result<Self>;
 }
