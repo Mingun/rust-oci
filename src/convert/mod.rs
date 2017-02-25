@@ -1,5 +1,7 @@
 //! Содержит код для преобразованием между типами Rust и типами базы данных.
 
+use std::os::raw::c_void;
+use std::marker::PhantomData;
 use std::str;
 use std::time::Duration;
 
@@ -70,4 +72,39 @@ fn from_ds(ty: Type, raw: &[u8], conn: &Connection) -> Result<Duration> {
   let ns = dur[4] as u32;
   let secs = ((dd*24 + hh)*60 + mm)*60 + ss;
   Ok(Duration::new(secs, ns))
+}
+//-------------------------------------------------------------------------------------------------
+
+/// Содержит информацию, необходимую для обобщенного связывания любого типа, реализующего `Into<BindInfo>`.
+#[derive(Debug)]
+pub struct BindInfo<'a> {
+  /// Указатель на начало памяти, содержащей данные для связывания.
+  pub ptr: *const c_void,
+  /// Размер данных, на которые указывает `ptr`.
+  pub size: usize,
+  /// Тип базы данных, представленный данной структурой.
+  pub ty: Type,
+  /// Маркер, привязывающей структуре время жизни.
+  pub _phantom: PhantomData<&'a ()>,
+}
+impl<'a> BindInfo<'a> {
+  #[inline]
+  fn from_slice(slice: &[u8], ty: Type) -> Self {
+    BindInfo {
+      ptr: slice.as_ptr() as *const c_void,
+      size: slice.len(),
+      ty: ty,
+      _phantom: PhantomData,
+    }
+  }
+}
+impl<'a> Into<BindInfo<'a>> for &'a str {
+  fn into(self) -> BindInfo<'a> {
+    BindInfo::from_slice(self.as_bytes(), Type::CHR)
+  }
+}
+impl<'a> Into<BindInfo<'a>> for &'a String {
+  fn into(self) -> BindInfo<'a> {
+    BindInfo::from_slice(self.as_bytes(), Type::CHR)
+  }
 }

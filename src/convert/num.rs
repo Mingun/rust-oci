@@ -1,12 +1,13 @@
 
 use std::os::raw::{c_void, c_uint};
+use std::marker::PhantomData;
 use std::mem::size_of;
 
 use num_traits::{Signed, Unsigned};
 use num_integer::Integer;
 
 use {Connection, DbResult, Result};
-use convert::FromDB;
+use convert::{BindInfo, FromDB};
 use error::Error;
 use types::Type;
 
@@ -54,7 +55,6 @@ impl Default for OCINumber {
 }
 impl<'conn> FromDB<'conn> for OCINumber {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
-    println!("ty: {:?} [{:?}]{:?}", ty, raw.len(), raw);
     match ty {
       Type::NUM => {
         let l = raw.len();
@@ -116,3 +116,30 @@ num_from!(  u16, NumberFlag::Unsigned, UIN);
 num_from!(  u32, NumberFlag::Unsigned, UIN);
 num_from!(  u64, NumberFlag::Unsigned, UIN);
 num_from!(usize, NumberFlag::Unsigned, UIN);
+
+macro_rules! num_into {
+  ($ty:ty, $id:ident) => (
+    impl<'a> Into<BindInfo<'a>> for &'a $ty {
+      fn into(self) -> BindInfo<'a> {
+        BindInfo {
+          ptr: self as *const $ty as *const c_void,
+          size: size_of::<$ty>(),
+          ty: Type::$id,
+          _phantom: PhantomData,
+        }
+      }
+    }
+  )
+}
+
+num_into!(   i8, INT);
+num_into!(  i16, INT);
+num_into!(  i32, INT);
+num_into!(  i64, INT);
+num_into!(isize, INT);
+
+num_into!(   u8, UIN);
+num_into!(  u16, UIN);
+num_into!(  u32, UIN);
+num_into!(  u64, UIN);
+num_into!(usize, UIN);

@@ -7,6 +7,24 @@ use std::os::raw::{c_int, c_void};
 
 use ffi::native::{OCIBind, OCISvcCtx, OCIDefine, OCIDescribe, OCIError, OCIStmt, OCIType};// FFI типы
 
+
+pub type OCICallbackInBind  = extern "C" fn(ictxp: *mut c_void,
+                                            bindp: *mut OCIBind,
+                                            iter: u32,
+                                            index: u32,
+                                            bufpp: *mut *mut c_void,
+                                            alenp: *mut u32,
+                                            piecep: *mut u8,
+                                            indpp: *mut *mut c_void) -> i32;
+pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
+                                            bindp: *mut OCIBind,
+                                            iter: u32,
+                                            index: u32,
+                                            bufpp: *mut *mut c_void,
+                                            alenpp: *mut *mut u32,
+                                            piecep: *mut u8,
+                                            indpp: *mut *mut c_void,
+                                            rcodepp: *mut *mut u16) -> i32;
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
 #[cfg_attr(not(windows), link(name = "clntsh"))]
@@ -79,6 +97,15 @@ extern "C" {
                       maxarr_len: u32,
                       curelep: *mut u32,
                       mode: u32) -> c_int;
+  /// Registers user callbacks for dynamic data allocation.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17142
+  pub fn OCIBindDynamic(bindp: *mut OCIBind,
+                        errhp: *mut OCIError,
+                        ictxp: *mut c_void,
+                        icbfp: Option<OCICallbackInBind>,
+                        octxp: *mut c_void,
+                        ocbfp: Option<OCICallbackOutBind>) -> c_int;
 
   /// Associates an item in a select list with the type and output data buffer.
   ///

@@ -2,12 +2,13 @@
 //! и структур, связанных с ними.
 mod storage;
 
+use std::fmt;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use convert::FromDB;
+use convert::{BindInfo, FromDB};
 use error::{self, Error};
 use error::DbError::{Info, NoData, Fault};
 use types::{Type, Syntax, StatementType};
@@ -16,10 +17,10 @@ use ffi::{Descriptor, Handle};// Основные типобезопасные �
 use ffi::ParamHandle;// Типажи для безопасного моста к FFI
 
 use ffi::attr::AttrHolder;
-use ffi::native::{OCIParam, OCIStmt, OCIBind, OCIError};// FFI типы
+use ffi::native::{OCIParam, OCIStmt, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
 use ffi::types::Attr;
-use ffi::types::{DefineMode, CachingMode, ExecuteMode, FetchMode};
+use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
 
 use self::storage::DefineInfo;
 
@@ -142,27 +143,33 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     };
     return self.error().check(res);
   }
-  fn bind_by_pos(&self, pos: u32, value: *mut c_void, size: i32, dty: Type) -> DbResult<Handle<OCIBind>> {
+  /// # Парaметры
+  /// - `pos`:
+  ///   Порядковый номер параметра в запросе (нумерация с 0). Если параметры именованные, то каждое вхождение
+  ///   параметра должно привязываться отдельно и может иметь разное значение в каждой привязке.
+  /// - `info`:
+  ///   Данные для связывания.
+  fn bind_by_pos(&self, pos: u32, info: BindInfo, mode: BindMode) -> DbResult<()> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByPos(
         self.native as *mut OCIStmt,
         &mut handle,
         self.error().native_mut(),
-        pos,
-        // Указатель на данные для извлечения результата, его размер и тип
-        value, size, dty as u16,
+        // В API оракла нумерация с 1, мы же придерживаемся традиционной с 0
+        pos + 1,
+        // Указатель на данные для получения результата, его размер и тип
+        info.ptr as *mut c_void, info.size as i32, info.ty as u16,
         ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
-        0, ptr::null_mut(), 0
+        0, ptr::null_mut(), mode as u32
       )
     };
-
-    Handle::from_ptr(res, handle, self.error().native_mut())
+    self.error().check(res)
   }
-  fn bind_by_name(&self, placeholder: &str, value: *mut c_void, size: i32, dty: Type) -> DbResult<Handle<OCIBind>> {
+  fn bind_by_name(&self, placeholder: &str, info: BindInfo, mode: BindMode) -> DbResult<()> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByName(
@@ -170,17 +177,16 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         &mut handle,
         self.error().native_mut(),
         placeholder.as_ptr(), placeholder.len() as i32,
-        // Указатель на данные для извлечения результата, его размер и тип
-        value, size, dty as u16,
+        // Указатель на данные для получения результата, его размер и тип
+        info.ptr as *mut c_void, info.size as i32, info.ty as u16,
         ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
-        0, ptr::null_mut(), 0
+        0, ptr::null_mut(), mode as u32
       )
     };
-
-    Handle::from_ptr(res, handle, self.error().native_mut())
+    self.error().check(res)
   }
   /// Ассоциирует с выражением адреса буферов, в которые извлечь данные.
   ///
@@ -338,6 +344,43 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       StatementType::SELECT => RowSet::new(self).map(|r| Some(r)),
       _ => Ok(None),
     }
+  }
+
+  /// Ассоциирует с данным выражением адрес буфера, из которого извлекать данные для заданной переменной.
+  ///
+  /// # Параметры
+  /// - `index`:
+  ///   Порядковый номер (нумерация с 0) или символьное имя переменной в запросе.
+  /// - `param`:
+  ///   Связываемые данные. Должны дожить до вызова [`execute`][1] или [`query`][2].
+  ///
+  /// # OCI вызовы
+  /// При каждом вызове выполняется OCI-вызов [`OCIBindByName()`][3] или [`OCIBindByPos()`][4], в зависимости от
+  /// того, какой тип параметра передан в `index`. Когда будет поддержано связывание функций для динамического
+  /// предоставления данных, для них будет осуществляться вызов [`OCIBindDynamic()`][5].
+  ///
+  /// # Запросы к серверу (0)
+  /// Ни одна из вызываемых функций не выполняет запросов к серверу.
+  ///
+  /// # Unsafe
+  /// Функция небезопасная по той причине, что параметр `param` должен дожить до вызова [`execute`][1] или [`query`][2].
+  /// К сожалению, пока неясно, как заставить компилятор форсировать данное требование.
+  ///
+  /// [1]: #method.execute
+  /// [2]: #method.query
+  /// [3]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17140
+  /// [4]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17141
+  /// [5]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17142
+  pub unsafe fn bind<'i, 'p, I, P>(&mut self, index: I, param: P) -> Result<()>
+    where I: Into<BindIndex<'i>>,
+          P: Into<BindInfo<'p>> + 'p
+  {
+    let info = param.into();
+    try!(match index.into() {
+      BindIndex::Name(name) => self.bind_by_name(name, info, BindMode::default()),
+      BindIndex::Index(pos) => self.bind_by_pos(pos as u32, info, BindMode::default()),
+    });
+    Ok(())
   }
 }
 impl<'conn, 'key> Drop for Statement<'conn, 'key> {
@@ -537,5 +580,36 @@ impl RowIndex for usize {
 impl<'a> RowIndex for &'a str {
   fn idx(&self, rs: &RowSet) -> Option<usize> {
     rs.columns().iter().position(|x| x.name == *self)
+  }
+}
+
+/// Обобщенный индекс связываемых параметров. Позволяет связывать параметры как по позиции,
+/// так и по имени, используя один и тот же вызов [`bind`][1], перегруженный по принимаемым аргументам.
+///
+/// [1]: ./struct.Statement.html#method.bind
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BindIndex<'a> {
+  /// Связывание осуществляется по имени переменной.
+  Name(&'a str),
+  /// Связывание осуществляется по позиции переменной.
+  Index(usize)
+}
+impl<'a> fmt::Display for BindIndex<'a> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match *self {
+      BindIndex::Name(name) => write!(f, "{}", name),
+      BindIndex::Index(pos) => write!(f, "{}", pos),
+    }
+  }
+}
+
+impl<'a> From<usize> for BindIndex<'a> {
+  fn from(t: usize) -> Self {
+    BindIndex::Index(t)
+  }
+}
+impl<'a> From<&'a str> for BindIndex<'a> {
+  fn from(t: &'a str) -> Self {
+    BindIndex::Name(t)
   }
 }

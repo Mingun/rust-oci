@@ -352,7 +352,7 @@ pub enum FetchMode {
 impl Default for FetchMode {
   fn default() -> Self { FetchMode::Default }
 }
-/// Определяет способ связывания данных для выражения.
+/// Определяет способ связывания выходных данных для выражения.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum DefineMode {
@@ -367,12 +367,42 @@ pub enum DefineMode {
   /// as `dty` or `value_sz` is changed from the previous define, this mode is ignored. Unexpected behavior results if an invalid
   /// define handle is passed. An error is returned if the statement is not executed.
   Soft         = 1 << 7,
-  ///  Define noncontiguous addresses of data. The `valuep` parameter must be of the type `OCIIOV *`.
+  /// Define noncontiguous addresses of data. The `valuep` parameter must be of the type `OCIIOV *`.
   IOV          = 1 << 9,
 }
 impl Default for DefineMode {
   fn default() -> Self { DefineMode::Default }
 }
+/// Определяет способ связывания входных данных для выражения.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum BindMode {
+  /// This is the default mode.
+  Default    = 0,
+  /// When this mode is selected, the `value_sz` parameter defines the maximum size of the data that can be provided at run time.
+  /// The application must be ready to provide the OCI library runtime IN data buffers at any time and any number of times. Runtime
+  /// data is provided in one of the following ways:
+  ///
+  /// - Callbacks using a user-defined function that must be registered with a subsequent call to `OCIBindDynamic()`.
+  /// - A polling mechanism using calls supplied by OCI. This mode is assumed if no callbacks are defined.
+  ///
+  /// When mode is set to `DataAtExec`, do not provide values for `valuep`, `indp`, `alenp`, and `rcodep` in the main call.
+  /// Pass zeros (0) for `indp` and `alenp`. Provide the values through the callback function registered using `OCIBindDynamic()`.
+  DataAtExec = 1 << 1,
+  /// Soft bind mode. This mode increases the performance of the call. If this is the first bind or some input value like `dty`
+  /// or `value_sz` is changed from the previous bind, this mode is ignored. An error is returned if the statement is not executed.
+  /// Unexpected behavior results if the bind handle passed is not valid.
+  Soft       = 1 << 6,
+  /// Bind noncontiguous addresses of data. The `valuep` parameter must be of the type `OCIIOV *`. This mode is intended to be
+  /// used for scatter or gather binding, which allows multiple buffers to be bound or defined to a position, for example column
+  /// `A` for the first 10 rows in one buffer, next 5 rows in one buffer, and the remaining 25 rows in another buffer. That
+  /// eliminates the need to allocate and copy all of them into one big buffer while doing the array execute operation.
+  IOV        = 1 << 9,
+}
+impl Default for BindMode {
+  fn default() -> Self { BindMode::Default }
+}
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
