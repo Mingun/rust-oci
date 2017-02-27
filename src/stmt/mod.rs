@@ -152,7 +152,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   параметра должно привязываться отдельно и может иметь разное значение в каждой привязке.
   /// - `info`:
   ///   Данные для связывания.
-  fn bind_by_pos(&self, pos: u32, info: BindInfo, mode: BindMode) -> DbResult<()> {
+  fn bind_by_pos(&self, pos: u32, info: BindInfo, mode: BindMode) -> DbResult<*mut OCIBind> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByPos(
@@ -170,9 +170,10 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         0, ptr::null_mut(), mode as u32
       )
     };
-    self.error().check(res)
+    try!(self.error().check(res));
+    Ok(handle)
   }
-  fn bind_by_name(&self, placeholder: &str, info: BindInfo, mode: BindMode) -> DbResult<()> {
+  fn bind_by_name(&self, placeholder: &str, info: BindInfo, mode: BindMode) -> DbResult<*mut OCIBind> {
     let mut handle = ptr::null_mut();
     let res = unsafe {
       OCIBindByName(
@@ -189,7 +190,8 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         0, ptr::null_mut(), mode as u32
       )
     };
-    self.error().check(res)
+    try!(self.error().check(res));
+    Ok(handle)
   }
   fn bind_dynamic<F>(&self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
     where F: FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool)
