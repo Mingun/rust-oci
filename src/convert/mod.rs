@@ -2,6 +2,7 @@
 
 use std::os::raw::c_void;
 use std::marker::PhantomData;
+use std::ptr;
 use std::str;
 use std::time::Duration;
 
@@ -84,6 +85,8 @@ pub struct BindInfo<'a> {
   pub size: usize,
   /// Тип базы данных, представленный данной структурой.
   pub ty: Type,
+  /// Признак того, что переменная связывания содержит `NULL`.
+  pub is_null: i16,
   /// Маркер, привязывающей структуре время жизни.
   pub _phantom: PhantomData<&'a ()>,
 }
@@ -94,6 +97,17 @@ impl<'a> BindInfo<'a> {
       ptr: slice.as_ptr() as *const c_void,
       size: slice.len(),
       ty: ty,
+      is_null: 0,
+      _phantom: PhantomData,
+    }
+  }
+  #[inline]
+  fn null(ty: Type) -> Self {
+    BindInfo {
+      ptr: ptr::null(),
+      size: 0,
+      ty: ty,
+      is_null: -1,
       _phantom: PhantomData,
     }
   }

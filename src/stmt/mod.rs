@@ -163,7 +163,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         pos + 1,
         // Указатель на данные для получения результата, его размер и тип
         info.ptr as *mut c_void, info.size as i32, info.ty as u16,
-        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
+        &info.is_null as *const i16 as *mut i16 as *mut c_void,// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
@@ -183,7 +183,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         placeholder.as_ptr(), placeholder.len() as i32,
         // Указатель на данные для получения результата, его размер и тип
         info.ptr as *mut c_void, info.size as i32, info.ty as u16,
-        ptr::null_mut(),// Массив индикаторов (null/не null, пока не используем)
+        &info.is_null as *const i16 as *mut i16 as *mut c_void,// Массив индикаторов (null/не null, пока не используем)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 

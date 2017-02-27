@@ -125,6 +125,7 @@ macro_rules! num_into {
           ptr: self as *const $ty as *const c_void,
           size: size_of::<$ty>(),
           ty: Type::$id,
+          is_null: 0,
           _phantom: PhantomData,
         }
       }
