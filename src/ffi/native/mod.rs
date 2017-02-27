@@ -11,7 +11,7 @@ macro_rules! descriptor {
   );
 }
 
-mod bind;
+pub mod bind;
 mod conn;
 mod hndl;
 mod misc;

@@ -410,3 +410,21 @@ pub enum NumberFlag {
   Unsigned = 0,
   Signed = 2,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+#[repr(i16)]
+pub enum OCIInd {
+  NotNull = 0,
+  Null = -1,
+  BadNull = -2,
+  NotNullable = -3,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum CallbackResult {
+  /// Продолжить выполнение функции, вызвавшей функцию обратного вызова
+  Continue = -24200,
+  /// Завершить выполнение функции, вызвавшей функцию обратного вызова
+  Done     = -24201,
+}

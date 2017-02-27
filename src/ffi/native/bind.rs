@@ -3,9 +3,13 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI153
 
+use std::mem;
 use std::os::raw::{c_int, c_void};
+use std::ptr;
 
 use ffi::native::{OCIBind, OCISvcCtx, OCIDefine, OCIDescribe, OCIError, OCIStmt, OCIType};// FFI типы
+use ffi::native::lob::LobPiece;
+use ffi::types::{CallbackResult, OCIInd};
 
 
 pub type OCICallbackInBind  = extern "C" fn(ictxp: *mut c_void,
@@ -25,6 +29,51 @@ pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
                                             piecep: *mut u8,
                                             indpp: *mut *mut c_void,
                                             rcodepp: *mut *mut u16) -> i32;
+
+/// Функция, возвращающая значение связанной переменной.
+///
+/// # Параметры
+/// - `handle`:
+///   Хендл связанного параметра, уникально идентфицирующий параметр
+/// - `iter`:
+///   A 0-based execute iteration value.
+/// - `index`:
+///   For PL/SQL, the index of the current array for an array bind. For SQL, the index is the row number
+///   in the current iteration. It is 0-based, and must not be greater than the `curelep` parameter of
+///   the bind call.
+/// - `piece`:
+///   A piece of the bind value. This can be one of the following values: `OCI_ONE_PIECE`, `OCI_FIRST_PIECE`,
+///   `OCI_NEXT_PIECE`, and `OCI_LAST_PIECE`. For data types that do not support piecewise operations, you
+///   must pass `OCI_ONE_PIECE` or an error is generated.
+type InBindFn = FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool);
+/// Функция для преобразования Rust-like замыкания в C-like функцию, требуемую в API Oracle.
+pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
+                                  bindp: *mut OCIBind,
+                                  iter: u32,
+                                  index: u32,
+                                  bufpp: *mut *mut c_void,
+                                  alenp: *mut u32,
+                                  piecep: *mut u8,
+                                  indpp: *mut *mut c_void) -> i32 {
+  let closure: &mut &mut InBindFn = unsafe { mem::transmute(ictxp) };
+  let piece: LobPiece = unsafe { mem::transmute(*piecep) };
+
+  let (data, piece, res) = closure(unsafe { &mut *bindp }, iter, index, piece);
+
+  let (ptr, len, ind) = match data {
+    Some(d) => ( d.as_ptr(), d.len(), OCIInd::NotNull),
+    None    => (ptr::null(),       0, OCIInd::Null   ),
+  };
+
+  unsafe {
+    if bufpp != ptr::null_mut() { *bufpp = ptr as *mut c_void; }
+    if alenp != ptr::null_mut() { *alenp = len as u32; }
+    if indpp != ptr::null_mut() { *indpp = &ind as *const _ as *const c_void as *mut c_void; }
+    if piecep!= ptr::null_mut() { *piecep= piece as u8; }
+  }
+
+  (if res { CallbackResult::Done } else { CallbackResult::Continue }) as i32
+}
 // По странной прихоти разработчиков оракла на разных системах имя библиотеки разное
 #[cfg_attr(windows, link(name = "oci"))]
 #[cfg_attr(not(windows), link(name = "clntsh"))]

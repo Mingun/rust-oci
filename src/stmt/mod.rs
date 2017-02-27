@@ -16,8 +16,10 @@ use ffi::{Descriptor, Handle};// Основные типобезопасные �
 use ffi::ParamHandle;// Типажи для безопасного моста к FFI
 
 use ffi::attr::AttrHolder;
-use ffi::native::{OCIParam, OCIStmt, OCIError};// FFI типы
-use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIDefineByPos};// FFI функции
+use ffi::native::{OCIBind, OCIParam, OCIStmt, OCIError};// FFI типы
+use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIBindDynamic, OCIDefineByPos};// FFI функции
+use ffi::native::bind::in_bind_adapter;
+use ffi::native::lob::LobPiece;
 use ffi::types::Attr;
 use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
 
@@ -185,6 +187,20 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         ptr::null_mut(),// Массив для column-level return codes
 
         0, ptr::null_mut(), mode as u32
+      )
+    };
+    self.error().check(res)
+  }
+  fn bind_dynamic<F>(&self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
+    where F: FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool)
+  {
+    let callback: &mut FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool) = &mut supplier;
+    let res = unsafe {
+      OCIBindDynamic(
+        handle,
+        self.error().native_mut(),
+        callback as *mut _ as *mut c_void, Some(in_bind_adapter),
+        ptr::null_mut(), None
       )
     };
     self.error().check(res)
