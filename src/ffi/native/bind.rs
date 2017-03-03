@@ -45,7 +45,7 @@ pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
 ///   A piece of the bind value. This can be one of the following values: `OCI_ONE_PIECE`, `OCI_FIRST_PIECE`,
 ///   `OCI_NEXT_PIECE`, and `OCI_LAST_PIECE`. For data types that do not support piecewise operations, you
 ///   must pass `OCI_ONE_PIECE` or an error is generated.
-type InBindFn = FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool);
+pub type InBindFn<'a, 'b> = FnMut(u32, u32, LobPiece) -> (Option<&'a [u8]>, LobPiece, bool) + 'b;
 /// Функция для преобразования Rust-like замыкания в C-like функцию, требуемую в API Oracle.
 pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
                                   bindp: *mut OCIBind,
@@ -58,7 +58,7 @@ pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
   let closure: &mut &mut InBindFn = unsafe { mem::transmute(ictxp) };
   let piece: LobPiece = unsafe { mem::transmute(*piecep) };
 
-  let (data, piece, res) = closure(unsafe { &mut *bindp }, iter, index, piece);
+  let (data, piece, res) = closure(iter, index, piece);
 
   let (ptr, len, ind) = match data {
     Some(d) => ( d.as_ptr(), d.len(), OCIInd::NotNull),

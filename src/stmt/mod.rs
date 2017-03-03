@@ -18,7 +18,7 @@ use ffi::ParamHandle;// Типажи для безопасного моста к
 use ffi::attr::AttrHolder;
 use ffi::native::{OCIBind, OCIParam, OCIStmt, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIBindDynamic, OCIDefineByPos};// FFI функции
-use ffi::native::bind::in_bind_adapter;
+use ffi::native::bind::{InBindFn, in_bind_adapter};
 use ffi::native::lob::LobPiece;
 use ffi::types::Attr;
 use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
@@ -198,15 +198,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Описатель связываемого параметра, которому информация буфет предоставляться динамически
   /// - `supplier`:
   ///   Функция, динамически предоставляющая необходимые данные
-  fn bind_dynamic<F>(&self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
-    where F: FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool)
+  fn bind_dynamic<'a, 'b, F>(&'a self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
+    where F: FnMut(u32, u32, LobPiece) -> (Option<&'a [u8]>, LobPiece, bool) + 'b
   {
-    let callback: &mut FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool) = &mut supplier;
+    let mut callback: &mut InBindFn = &mut supplier;
     let res = unsafe {
       OCIBindDynamic(
         handle,
         self.error().native_mut(),
-        callback as *mut _ as *mut c_void, Some(in_bind_adapter),
+        &mut callback as *mut _ as *mut c_void, Some(in_bind_adapter),
         ptr::null_mut(), None
       )
     };
