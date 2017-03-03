@@ -193,6 +193,11 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     try!(self.error().check(res));
     Ok(handle)
   }
+  /// # Параметры
+  /// - `handle`:
+  ///   Описатель связываемого параметра, которому информация буфет предоставляться динамически
+  /// - `supplier`:
+  ///   Функция, динамически предоставляющая необходимые данные
   fn bind_dynamic<F>(&self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
     where F: FnMut(&mut OCIBind, u32, u32, LobPiece) -> (Option<&[u8]>, LobPiece, bool)
   {
@@ -210,15 +215,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// Ассоциирует с выражением адреса буферов, в которые извлечь данные.
   ///
   /// # Параметры
-  /// - pos:
+  /// - `pos`:
   ///   Порядковый номер параметра в запросе (нумерация с 0)
-  /// - dty:
+  /// - `dty`:
   ///   Тип данных, которые нужно извлечь
-  /// - buf:
+  /// - `buf`:
   ///   Буфер, в который будет записана выходная информация.
-  /// - ind:
+  /// - `ind`:
   ///   Переменная, в которую будет записан признак того, что в столбце содержится `NULL`.
-  /// - out_size:
+  /// - `out_size`:
   ///   Количество байт, записанное в буфер. Не превышает его длину
   fn define(&self, pos: u32, dty: Type, buf: &mut DefineInfo, mode: DefineMode) -> DbResult<()> {
     let res = unsafe {
@@ -246,7 +251,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   fn param_count(&self) -> DbResult<u32> {
     self.get_(Attr::ParamCount, self.error())
   }
-  /// Получает количество cтрок, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
+  /// Получает количество строк, обработанных последним выполненным `INSERT/UPDATE/DELETE` запросом,
   /// или количество строк, полученное последним вызовом fetch для `SELECT` запроса.
   #[inline]
   fn row_count(&self) -> DbResult<u64> {
@@ -255,7 +260,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// Получает дескриптор с описанием столбца в полученном списке извлеченных `SELECT`-ом столбцов для указанного столбца.
   ///
   /// # Параметры
-  /// - pos:
+  /// - `pos`:
   ///   Номер столбца, для которого извлекается информация. Нумерация с 0, в отличие от API оракла, где нумерация идет с 1.
   #[inline]
   fn param_get(&self, pos: u32) -> DbResult<Descriptor<OCIParam>> {

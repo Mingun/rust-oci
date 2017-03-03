@@ -218,7 +218,9 @@ impl<'lob, 'conn: 'lob> Drop for ClobWriter<'lob, 'conn> {
 #[derive(Debug)]
 pub struct ClobReader<'lob, 'conn: 'lob> {
   lob: &'lob mut Clob<'conn>,
+  /// Описательная часть порции данных, получаемых из базы данных (первая или нет).
   piece: LobPiece,
+  /// Кодировка, в которой следует интерпретировать получаемые из базы данных байты.
   charset: Charset,
 }
 impl<'lob, 'conn: 'lob> ClobReader<'lob, 'conn> {
