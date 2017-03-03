@@ -198,7 +198,7 @@ extern "C" {
   /// # Parameters
   /// - hndl (IN):
   ///   The OCI user session handle or environment handle.
-  ///- err (IN/OUT):
+  /// - err (IN/OUT):
   ///   The OCI error handle. If there is an error, it is recorded in `err`, and this function returns `OCI_ERROR`.
   ///   Obtain diagnostic information by calling `OCIErrorGet()`.
   /// - datetime (IN):

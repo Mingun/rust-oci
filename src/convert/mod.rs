@@ -101,8 +101,9 @@ impl<'a> BindInfo<'a> {
       _phantom: PhantomData,
     }
   }
+  /// Возвращает структуру связывания, представляющую значение указанного типа, связанное с `NULL`-ом.
   #[inline]
-  fn null(ty: Type) -> Self {
+  pub fn null(ty: Type) -> Self {
     BindInfo {
       ptr: ptr::null(),
       size: 0,

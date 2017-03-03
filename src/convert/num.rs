@@ -144,3 +144,6 @@ num_into!(  u16, UIN);
 num_into!(  u32, UIN);
 num_into!(  u64, UIN);
 num_into!(usize, UIN);
+
+num_into!(f32, IBFLOAT);
+num_into!(f64, IBDOUBLE);

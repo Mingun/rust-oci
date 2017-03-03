@@ -37,6 +37,8 @@ extern "C" {
   ///   * `OCI_NUMBER_SIGNED` - Signed values
   /// - rsl (OUT):
   ///   Pointer to space for the result.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/oci-NUMBER-functions.htm#LNOCI17490
   pub fn OCINumberToInt(err: *mut OCIError,
                         number: *const OCINumber,
                         rsl_length: c_uint,
@@ -61,6 +63,8 @@ extern "C" {
   ///   The size of the desired result, which equals `sizeof({ float | double | long double})`.
   /// - rsl (OUT):
   ///   Pointer to space for the result.
+  ///
+  /// http://docs.oracle.com/database/122/LNOCI/oci-NUMBER-functions.htm#LNOCI17491
   pub fn OCINumberToReal(err: *mut OCIError,
                          number: *const OCINumber,
                          rsl_length: c_uint,
