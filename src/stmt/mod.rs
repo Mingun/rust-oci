@@ -4,6 +4,7 @@ pub mod index;
 pub mod query;
 mod storage;
 
+use std::i32;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
@@ -154,6 +155,13 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   ///   Данные для связывания.
   fn bind_by_pos(&self, pos: u32, info: BindInfo, mode: BindMode) -> DbResult<*mut OCIBind> {
     let mut handle = ptr::null_mut();
+    let (is_null, size) = if mode == BindMode::DataAtExec {
+      // В случае динамического предоставления данных в качестве длины указывается максимально
+      // возможный общий предоставляемый размер данных. Даем по максимуму.
+      (ptr::null_mut(), i32::MAX)
+    } else {
+      (&info.is_null as *const i16 as *mut i16 as *mut c_void, info.size as i32)
+    };
     let res = unsafe {
       OCIBindByPos(
         self.native as *mut OCIStmt,
@@ -161,9 +169,9 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         self.error().native_mut(),
         // В API оракла нумерация с 1, мы же придерживаемся традиционной с 0
         pos + 1,
-        // Указатель на данные для получения результата, его размер и тип
-        info.ptr as *mut c_void, info.size as i32, info.ty as u16,
-        &info.is_null as *const i16 as *mut i16 as *mut c_void,// Массив индикаторов (null/не null, пока не используем)
+        // Указатель на буфер с данными, его размер и тип
+        info.ptr as *mut c_void, size, info.ty as u16,
+        is_null,// Массив индикаторов (null/не null)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
@@ -175,15 +183,22 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   }
   fn bind_by_name(&self, placeholder: &str, info: BindInfo, mode: BindMode) -> DbResult<*mut OCIBind> {
     let mut handle = ptr::null_mut();
+    let (is_null, size) = if mode == BindMode::DataAtExec {
+      // В случае динамического предоставления данных в качестве длины указывается максимально
+      // возможный общий предоставляемый размер данных. Даем по максимуму.
+      (ptr::null_mut(), i32::MAX)
+    } else {
+      (&info.is_null as *const i16 as *mut i16 as *mut c_void, info.size as i32)
+    };
     let res = unsafe {
       OCIBindByName(
         self.native as *mut OCIStmt,
         &mut handle,
         self.error().native_mut(),
         placeholder.as_ptr(), placeholder.len() as i32,
-        // Указатель на данные для получения результата, его размер и тип
-        info.ptr as *mut c_void, info.size as i32, info.ty as u16,
-        &info.is_null as *const i16 as *mut i16 as *mut c_void,// Массив индикаторов (null/не null, пока не используем)
+        // Указатель на буфер с данными, его размер и тип
+        info.ptr as *mut c_void, size, info.ty as u16,
+        is_null,// Массив индикаторов (null/не null)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
