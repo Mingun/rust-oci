@@ -227,6 +227,13 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     };
     self.error().check(res)
   }
+  #[inline]
+  fn bind_value(&self, index: BindIndex, info: BindInfo, mode: BindMode) -> DbResult<*mut OCIBind> {
+    match index {
+      BindIndex::Name(name) => self.bind_by_name(name, info, mode),
+      BindIndex::Index(pos) => self.bind_by_pos(pos as u32, info, mode),
+    }
+  }
   /// Ассоциирует с выражением адреса буферов, в которые извлечь данные.
   ///
   /// # Параметры
@@ -410,15 +417,14 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// [3]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17140
   /// [4]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17141
   /// [5]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI17142
-  pub unsafe fn bind<'i, 'p, I, P>(&mut self, index: I, param: P) -> Result<()>
+  pub unsafe fn bind<'i, 'p, I, P>(&'p mut self, index: I, param: P) -> Result<()>
     where I: Into<BindIndex<'i>>,
           P: Into<BindInfo<'p>> + 'p
   {
+    let index = index.into();
     let info = param.into();
-    try!(match index.into() {
-      BindIndex::Name(name) => self.bind_by_name(name, info, BindMode::default()),
-      BindIndex::Index(pos) => self.bind_by_pos(pos as u32, info, BindMode::default()),
-    });
+
+    try!(self.bind_value(index, info, BindMode::default()));
     Ok(())
   }
 }
