@@ -19,7 +19,7 @@ use ffi::ParamHandle;// Типажи для безопасного моста к
 use ffi::attr::AttrHolder;
 use ffi::native::{OCIBind, OCIParam, OCIStmt, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIBindDynamic, OCIDefineByPos};// FFI функции
-use ffi::native::bind::{InBindFn, in_bind_adapter};
+use ffi::native::bind::{BindContext, in_bind_adapter};
 use ffi::native::lob::LobPiece;
 use ffi::types::Attr;
 use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
@@ -94,6 +94,9 @@ pub struct Statement<'conn, 'key> {
   native: *const OCIStmt,
   /// Ключ для кеширования выражения
   key: Option<&'key str>,
+  /// Список с информацией о динамическом связывании переменных: каждая связанная переменная представляется
+  /// одной записью в данном списке
+  binds: Vec<BindContext<'conn>>,
 }
 impl<'conn, 'key> Statement<'conn, 'key> {
   /// Получает хендл для записи ошибок во время общения с базой данных. Хендл берется из соединения, которое породило
@@ -104,13 +107,13 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     self.conn.error()
   }
   /// # Параметры
-  /// - count:
+  /// - `count`:
   ///   * Для `select` выражений это количество строк, которые нужно извлечь prefetch-ем, уже в момент выполнения
   ///     запроса (т.е. сервер БД вернет их, не дожидаясь вызова `OCIStmtFetch2`). Если prefetch не нужен, то должно
   ///     быть равно `0`.
   ///   * Для не-`select` выражений это номер последнего элемента в буфере данных со связанными параметрами, которые
   ///     нужно использовать при выполнении данной операции
-  /// - offset:
+  /// - `offset`:
   ///   Смещение с буфере со связанными переменными, с которого необходимо начать выполнение 
   fn execute_impl(&self, count: u32, offset: u32, mode: ExecuteMode) -> DbResult<()> {
     let res = unsafe {
@@ -208,20 +211,28 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     try!(self.error().check(res));
     Ok(handle)
   }
+  /// Регистрирует функцию обратного вызова, которая предоставит данные для связанной переменной,
+  /// в процессе выполнения метода [`execute`][1] или [`query`][2].
+  ///
   /// # Параметры
   /// - `handle`:
   ///   Описатель связываемого параметра, которому информация буфет предоставляться динамически
   /// - `supplier`:
   ///   Функция, динамически предоставляющая необходимые данные
-  fn bind_dynamic<'a, 'b, F>(&'a self, handle: *mut OCIBind, mut supplier: F) -> DbResult<()>
-    where F: FnMut(u32, u32, LobPiece) -> (Option<&'a [u8]>, LobPiece, bool) + 'b
+  ///
+  /// [1]: #method.execute
+  /// [2]: #method.query
+  fn bind_dynamic<F>(&mut self, handle: *mut OCIBind, supplier: F) -> DbResult<()>
+    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'conn
   {
-    let mut callback: &mut InBindFn = &mut supplier;
+    self.binds.push(BindContext::new(supplier));
+    let error = self.error().native_mut();
     let res = unsafe {
+      let ctx = self.binds.last_mut().unwrap();
       OCIBindDynamic(
         handle,
-        self.error().native_mut(),
-        &mut callback as *mut _ as *mut c_void, Some(in_bind_adapter),
+        error,
+        ctx as *mut _ as *mut c_void, Some(in_bind_adapter),
         ptr::null_mut(), None
       )
     };
@@ -465,7 +476,7 @@ impl<'conn, 'key> super::StatementPrivate for Statement<'conn, 'key> {
       )
     };
     return match res {
-      0 => Ok(Statement { conn: conn, native: stmt, key: key }),
+      0 => Ok(Statement { conn: conn, native: stmt, key: key, binds: Vec::new() }),
       e => Err(conn.error().decode(e)),
     };
   }

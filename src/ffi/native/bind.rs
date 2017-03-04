@@ -3,6 +3,7 @@
 //!
 //! [1]: https://docs.oracle.com/database/122/LNOCI/bind-define-describe-functions.htm#LNOCI153
 
+use std::fmt;
 use std::mem;
 use std::os::raw::{c_int, c_void};
 use std::ptr;
@@ -35,6 +36,8 @@ pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
 /// # Параметры
 /// - `handle`:
 ///   Хендл связанного параметра, уникально идентфицирующий параметр
+/// - `store`:
+///   Место, куда необходимо записать выходные данные
 /// - `iter`:
 ///   A 0-based execute iteration value.
 /// - `index`:
@@ -45,7 +48,41 @@ pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
 ///   A piece of the bind value. This can be one of the following values: `OCI_ONE_PIECE`, `OCI_FIRST_PIECE`,
 ///   `OCI_NEXT_PIECE`, and `OCI_LAST_PIECE`. For data types that do not support piecewise operations, you
 ///   must pass `OCI_ONE_PIECE` or an error is generated.
-pub type InBindFn<'a, 'b> = FnMut(u32, u32, LobPiece) -> (Option<&'a [u8]>, LobPiece, bool) + 'b;
+pub type InBindFn<'f> = FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'f;
+
+/// Содержит информацию, позволяющую вызвать замыкание и сохранить полученные данные до тех пор,
+/// пока они не будут переданы Oracle.
+pub struct BindContext<'a> {
+  /// Функция, предоставляющая данные для связанных переменных
+  func: Box<InBindFn<'a>>,
+  /// Место, где хранятся данные для связанной переменной, возвращенные замыканием, пока не будет
+  /// вызван метод `execute`.
+  store: Vec<u8>,
+  /// Место для указания адреса в памяти, в котором хранится признак `NULL`-а в связанной переменной.
+  /// По странной прихоти API требует указать адрес переменной, в которой хранится признак `NULL`-а,
+  /// а не просто заполнить выходной параметр в функции обратного вызова.
+  is_null: OCIInd,
+}
+impl<'a> BindContext<'a> {
+  pub fn new<F>(f: F) -> Self
+    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'a
+  {
+    BindContext {
+      func: Box::new(f),
+      store: Vec::new(),
+      is_null: OCIInd::NotNull
+    }
+  }
+}
+impl<'a> fmt::Debug for BindContext<'a> {
+  fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fmt.debug_struct("BindContext")
+       .field("func", &(&self.func as *const _))
+       .field("store", &self.store)
+       .field("is_null", &self.is_null)
+       .finish()
+  }
+}
 /// Функция для преобразования Rust-like замыкания в C-like функцию, требуемую в API Oracle.
 pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
                                   bindp: *mut OCIBind,
@@ -55,21 +92,24 @@ pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
                                   alenp: *mut u32,
                                   piecep: *mut u8,
                                   indpp: *mut *mut c_void) -> i32 {
-  let closure: &mut &mut InBindFn = unsafe { mem::transmute(ictxp) };
+  let ctx: &mut BindContext = unsafe { mem::transmute(ictxp) };
+  let handle = unsafe { &mut *bindp };
+  let s = &mut ctx.store;
   let piece: LobPiece = unsafe { mem::transmute(*piecep) };
 
-  let (data, piece, res) = closure(iter, index, piece);
+  let (is_null, piece, res) = (ctx.func)(handle, s, iter, index, piece);
+  ctx.is_null = if is_null { OCIInd::Null } else { OCIInd::NotNull };
 
-  let (ptr, len, ind) = match data {
-    Some(d) => ( d.as_ptr(), d.len(), OCIInd::NotNull),
-    None    => (ptr::null(),       0, OCIInd::Null   ),
+  let (ptr, len) = match is_null {
+    false => ( s.as_mut_ptr(), s.len()),
+    true  => (ptr::null_mut(),       0),
   };
 
   unsafe {
-    if bufpp != ptr::null_mut() { *bufpp = ptr as *mut c_void; }
-    if alenp != ptr::null_mut() { *alenp = len as u32; }
-    if indpp != ptr::null_mut() { *indpp = &ind as *const _ as *const c_void as *mut c_void; }
-    if piecep!= ptr::null_mut() { *piecep= piece as u8; }
+    if !bufpp.is_null() { *bufpp = ptr as *mut c_void; }
+    if !alenp.is_null() { *alenp = len as u32; }
+    if !indpp.is_null() { *indpp = &ctx.is_null as *const _ as *const c_void as *mut c_void; }
+    if !piecep.is_null(){ *piecep= piece as u8; }
   }
 
   (if res { CallbackResult::Done } else { CallbackResult::Continue }) as i32
