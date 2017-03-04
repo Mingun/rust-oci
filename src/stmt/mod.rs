@@ -10,7 +10,7 @@ use std::os::raw::c_void;
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use convert::BindInfo;
+use convert::{BindInfo, ToDB};
 use types::{Type, Syntax, StatementType};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
@@ -436,6 +436,26 @@ impl<'conn, 'key> Statement<'conn, 'key> {
     let info = param.into();
 
     try!(self.bind_value(index, info, BindMode::default()));
+    Ok(())
+  }
+  /// Ассоциирует с указанным местом связывания функцию, каждый вызов которой отдает значение (или его
+  /// часть) для переменной связывания.
+  pub unsafe fn bind_fn<'i, I, F, T>(&mut self, index: I, mut func: F) -> Result<()>
+    where I: Into<BindIndex<'i>>,
+          F: FnMut(u32, u32) -> T + 'conn,
+          T: ToDB
+  {
+    let index = index.into();
+    let info = BindInfo::null(T::ty());
+
+    let handle = try!(self.bind_value(index, info, BindMode::DataAtExec));
+    try!(self.bind_dynamic(handle, move |_, v, iter, index, p| {
+      let is_null = match func(iter, index).to_db() {
+        Some(slice) => { v.extend_from_slice(slice); false },
+        None => true,
+      };
+      (is_null, p, false)
+    }));
     Ok(())
   }
 }

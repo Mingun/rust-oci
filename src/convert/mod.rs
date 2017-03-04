@@ -33,6 +33,19 @@ pub trait FromDB<'conn> : 'conn + Sized {
   fn from_db(ty: Type, raw: &[u8], conn: &'conn Connection) -> Result<Self>;
 }
 
+/// Преобразует тип Rust в тип базы данных.
+pub trait ToDB {
+  /// Тип базы данных, в который конвертируется тип Rust. Возвращаемое методом [`to_db`][1] представление
+  /// типа должно соответствовать данной константе.
+  ///
+  /// [1]: #method.to_db
+  fn ty() -> Type;
+  /// Преобразует данное значение в массив байт, который может использоваться в bind вызовах.
+  fn to_db(&self) -> Option<&[u8]>;
+}
+
+//-------------------------------------------------------------------------------------------------
+
 impl<'conn> FromDB<'conn> for String {
   fn from_db(ty: Type, raw: &[u8], _: &Connection) -> Result<Self> {
     match ty {
@@ -113,13 +126,83 @@ impl<'a> BindInfo<'a> {
     }
   }
 }
-impl<'a> Into<BindInfo<'a>> for &'a str {
-  fn into(self) -> BindInfo<'a> {
-    BindInfo::from_slice(self.as_bytes(), Type::CHR)
+
+impl<'a, T> From<&'a T> for BindInfo<'a>
+  where T: ToDB + ?Sized
+{
+  /// Преобразует данное значение в структуру с информацией о связывании для Oracle.
+  #[inline]
+  fn from(t: &'a T) -> Self {
+    match t.to_db() {
+      Some(data) => BindInfo::from_slice(data, T::ty()),
+      None => BindInfo::null(T::ty()),
+    }
   }
 }
-impl<'a> Into<BindInfo<'a>> for &'a String {
-  fn into(self) -> BindInfo<'a> {
-    BindInfo::from_slice(self.as_bytes(), Type::CHR)
+
+impl<T: ToDB> ToDB for Option<T> {
+  #[inline]
+  fn ty() -> Type {
+    <T as ToDB>::ty()
+  }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    self.as_ref().map_or(None, <T as ToDB>::to_db)
+  }
+}
+
+impl ToDB for bool {
+  #[inline]
+  fn ty() -> Type { Type::BOL }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    unimplemented!()//TODO Выяснить необходимый размер
+  }
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Строки
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+impl ToDB for str {
+  #[inline]
+  fn ty() -> Type { Type::CHR }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self.as_bytes())
+  }
+}
+impl<'a> ToDB for &'a str {
+  #[inline]
+  fn ty() -> Type { Type::CHR }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self.as_bytes())
+  }
+}
+impl ToDB for String {
+  #[inline]
+  fn ty() -> Type { Type::CHR }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self.as_bytes())
+  }
+}
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Массивы
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+impl ToDB for [u8] {
+  #[inline]
+  fn ty() -> Type { Type::LBI }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self)
+  }
+}
+impl ToDB for Vec<u8> {
+  #[inline]
+  fn ty() -> Type { Type::LBI }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self)
   }
 }

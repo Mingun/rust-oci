@@ -1,13 +1,13 @@
 
 use std::os::raw::{c_void, c_uint};
-use std::marker::PhantomData;
 use std::mem::size_of;
+use std::slice;
 
 use num_traits::{Signed, Unsigned};
 use num_integer::Integer;
 
 use {Connection, DbResult, Result};
-use convert::{BindInfo, FromDB};
+use convert::{FromDB, ToDB};
 use error::Error;
 use types::Type;
 
@@ -119,15 +119,12 @@ num_from!(usize, NumberFlag::Unsigned, UIN);
 
 macro_rules! num_into {
   ($ty:ty, $id:ident) => (
-    impl<'a> Into<BindInfo<'a>> for &'a $ty {
-      fn into(self) -> BindInfo<'a> {
-        BindInfo {
-          ptr: self as *const $ty as *const c_void,
-          size: size_of::<$ty>(),
-          ty: Type::$id,
-          is_null: 0,
-          _phantom: PhantomData,
-        }
+    impl ToDB for $ty {
+      #[inline]
+      fn ty() -> Type { Type::$id }
+      #[inline]
+      fn to_db(&self) -> Option<&[u8]> {
+        Some(unsafe { slice::from_raw_parts(self as *const $ty as *const _, size_of::<$ty>()) })
       }
     }
   )
