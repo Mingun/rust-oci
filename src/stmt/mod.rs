@@ -440,7 +440,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   }
   /// Ассоциирует с указанным местом связывания функцию, каждый вызов которой отдает значение (или его
   /// часть) для переменной связывания.
-  pub unsafe fn bind_fn<'i, I, F, T>(&mut self, index: I, mut func: F) -> Result<()>
+  pub fn bind_fn<'i, I, F, T>(&mut self, index: I, mut func: F) -> Result<()>
     where I: Into<BindIndex<'i>>,
           F: FnMut(u32, u32) -> T + 'conn,
           T: ToDB
@@ -454,7 +454,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         Some(slice) => { v.extend_from_slice(slice); false },
         None => true,
       };
-      (is_null, p, false)
+      (is_null, p.last(), false)
     }));
     Ok(())
   }

@@ -34,6 +34,25 @@ pub enum LobPiece {
   /// Читаемый/записываемый буфер является последней частью набора буферов для чтения/записи.
   Last  = 3,
 }
+impl LobPiece {
+  /// Получает смысловой номер следующей порции данных после данной
+  #[inline]
+  pub fn next(self) -> Self {
+    match self {
+      LobPiece::One => LobPiece::One,
+      LobPiece::Last => LobPiece::Last,
+      _ => LobPiece::Next,
+    }
+  }
+  /// Получает смысловой номер последней порции данных после данной
+  #[inline]
+  pub fn last(self) -> Self {
+    match self {
+      LobPiece::One => LobPiece::One,
+      _ => LobPiece::Last,
+    }
+  }
+}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CharsetForm {
