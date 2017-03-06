@@ -186,23 +186,3 @@ impl ToDB for String {
     Some(self.as_bytes())
   }
 }
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Массивы
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-impl ToDB for [u8] {
-  #[inline]
-  fn ty() -> Type { Type::LBI }
-  #[inline]
-  fn to_db(&self) -> Option<&[u8]> {
-    Some(self)
-  }
-}
-impl ToDB for Vec<u8> {
-  #[inline]
-  fn ty() -> Type { Type::LBI }
-  #[inline]
-  fn to_db(&self) -> Option<&[u8]> {
-    Some(self)
-  }
-}

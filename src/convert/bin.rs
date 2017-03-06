@@ -1,7 +1,7 @@
 //! Реализация конвертации в типы базы данных и обратно бинарных данных
 
 use {Connection, Result};
-use convert::FromDB;
+use convert::{FromDB, ToDB};
 use error::Error;
 use types::Type;
 
@@ -15,6 +15,27 @@ impl<'conn> FromDB<'conn> for Vec<u8> {
     }
   }
 }
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// В базу
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+impl ToDB for [u8] {
+  #[inline]
+  fn ty() -> Type { Type::LBI }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self)
+  }
+}
+impl ToDB for Vec<u8> {
+  #[inline]
+  fn ty() -> Type { Type::LBI }
+  #[inline]
+  fn to_db(&self) -> Option<&[u8]> {
+    Some(self)
+  }
+}
+
 /// Так как невозможно реализовать типаж обобщенно для любого размера массива, приходится реализовать
 /// его вручную только для некоторых размеров.
 ///
@@ -40,6 +61,15 @@ macro_rules! array {
           },
           t => Err(Error::Conversion(t)),
         }
+      }
+    }
+
+    impl ToDB for [u8; $size] {
+      #[inline]
+      fn ty() -> Type { Type::LBI }
+      #[inline]
+      fn to_db(&self) -> Option<&[u8]> {
+        Some(self)
       }
     }
   );
