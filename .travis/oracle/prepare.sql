@@ -192,3 +192,35 @@ insert into type_specific values(0,--NULL тест
   -- urowid
   null, null
 );
+---------------------------------------------------------------------------------------------------
+create table test_bind (
+  id number(2) not null primary key,-- номер теста
+--------------------------------------
+  col0 number,
+--------------------------------------
+  col1 varchar2(4000),
+  col2 char(2000),
+--------------------------------------
+  col3 date,
+  col4 timestamp,
+--------------------------------------
+  col5 raw(2000),
+  col6 long raw,
+--------------------------------------
+  col7 clob,
+  col8 nclob,
+  col9 blob,
+  col10 bfile
+);
+insert into test_bind values(0,--NULL тест
+  -- numbers
+  null,
+  -- strings
+  null, null,
+  -- times
+  null, null,
+  -- binary
+  null, null,
+  -- LOBs
+  null, null, null, null
+);
