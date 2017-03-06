@@ -3,7 +3,8 @@ use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode, CharsetForm};
+use ffi::native::lob::{Lob, LobImpl, LobOpenMode, CharsetForm};
+use ffi::types::Piece;
 
 use super::{Bytes, LobPrivate};
 
@@ -84,7 +85,7 @@ impl<'conn> Blob<'conn> {
   #[inline]
   pub fn new_reader<'lob>(&'lob mut self) -> Result<BlobReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
-    Ok(BlobReader { lob: self, piece: LobPiece::First })
+    Ok(BlobReader { lob: self, piece: Piece::First })
   }
   /// Создает писателя в данный бинарный объект. Преимущество использования писателя вместо прямой записи
   /// в объект в том, что функциональные и доменные индексы базы данных (если они есть) для данного большого
@@ -96,11 +97,11 @@ impl<'conn> Blob<'conn> {
   #[inline]
   pub fn new_writer<'lob>(&'lob mut self) -> Result<BlobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
-    Ok(BlobWriter { lob: self, piece: LobPiece::First })
+    Ok(BlobWriter { lob: self, piece: Piece::First })
   }
-  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+  fn close(&mut self, piece: Piece) -> DbResult<()> {
     // Если LOB был прочитан/записан не полностью, то отменяем запросы на чтение/запись и восстанавливаемся
-    if piece != LobPiece::Last {
+    if piece != Piece::Last {
       try!(self.impl_.break_());
       try!(self.impl_.reset());
     }
@@ -118,12 +119,12 @@ impl<'conn> LobPrivate<'conn> for Blob<'conn> {
 impl<'conn> io::Read for Blob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
     // Параметры charset и form игнорируется для бинарных объектов
-    self.impl_.read(LobPiece::One, Charset::Default, CharsetForm::Implicit, buf).0
+    self.impl_.read(Piece::One, Charset::Default, CharsetForm::Implicit, buf).0
   }
 }
 impl<'conn> io::Write for Blob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.impl_.write(LobPiece::One, Charset::Default, CharsetForm::Implicit, buf).0
+    self.impl_.write(Piece::One, Charset::Default, CharsetForm::Implicit, buf).0
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
@@ -135,7 +136,7 @@ impl<'conn> io::Write for Blob<'conn> {
 #[derive(Debug)]
 pub struct BlobWriter<'lob, 'conn: 'lob> {
   lob: &'lob mut Blob<'conn>,
-  piece: LobPiece,
+  piece: Piece,
 }
 impl<'lob, 'conn: 'lob> BlobWriter<'lob, 'conn> {
   /// Получает `BLOB`, записываемый данным писателем.
@@ -188,7 +189,7 @@ impl<'lob, 'conn: 'lob> Drop for BlobWriter<'lob, 'conn> {
 #[derive(Debug)]
 pub struct BlobReader<'lob, 'conn: 'lob> {
   lob: &'lob mut Blob<'conn>,
-  piece: LobPiece,
+  piece: Piece,
 }
 impl<'lob, 'conn: 'lob> BlobReader<'lob, 'conn> {
   /// Получает `BLOB`, читаемый данным читателем.

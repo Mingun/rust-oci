@@ -9,8 +9,7 @@ use std::os::raw::{c_int, c_void};
 use std::ptr;
 
 use ffi::native::{OCIBind, OCISvcCtx, OCIDefine, OCIDescribe, OCIError, OCIStmt, OCIType};// FFI типы
-use ffi::native::lob::LobPiece;
-use ffi::types::{CallbackResult, OCIInd};
+use ffi::types::{CallbackResult, OCIInd, Piece};
 
 
 pub type OCICallbackInBind  = extern "C" fn(ictxp: *mut c_void,
@@ -48,7 +47,7 @@ pub type OCICallbackOutBind = extern "C" fn(octxp: *mut c_void,
 ///   A piece of the bind value. This can be one of the following values: `OCI_ONE_PIECE`, `OCI_FIRST_PIECE`,
 ///   `OCI_NEXT_PIECE`, and `OCI_LAST_PIECE`. For data types that do not support piecewise operations, you
 ///   must pass `OCI_ONE_PIECE` or an error is generated.
-pub type InBindFn<'f> = FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'f;
+pub type InBindFn<'f> = FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, Piece) -> (bool, Piece, bool) + 'f;
 
 /// Содержит информацию, позволяющую вызвать замыкание и сохранить полученные данные до тех пор,
 /// пока они не будут переданы Oracle.
@@ -65,7 +64,7 @@ pub struct BindContext<'a> {
 }
 impl<'a> BindContext<'a> {
   pub fn new<F>(f: F) -> Self
-    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'a
+    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, Piece) -> (bool, Piece, bool) + 'a
   {
     BindContext {
       func: Box::new(f),
@@ -95,7 +94,7 @@ pub extern "C" fn in_bind_adapter(ictxp: *mut c_void,
   let ctx: &mut BindContext = unsafe { mem::transmute(ictxp) };
   let handle = unsafe { &mut *bindp };
   let s = &mut ctx.store;
-  let piece: LobPiece = unsafe { mem::transmute(*piecep) };
+  let piece: Piece = unsafe { mem::transmute(*piecep) };
 
   let (is_null, piece, res) = (ctx.func)(handle, s, iter, index, piece);
   ctx.is_null = if is_null { OCIInd::Null } else { OCIInd::NotNull };

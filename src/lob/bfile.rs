@@ -3,7 +3,8 @@ use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{File, LobImpl, LobPiece, LobOpenMode, CharsetForm};
+use ffi::native::lob::{File, LobImpl, LobOpenMode, CharsetForm};
+use ffi::types::Piece;
 
 use super::{Bytes, LobPrivate};
 
@@ -31,17 +32,17 @@ impl<'conn> BFile<'conn> {
   /// быть явно открыты, чтобы выполнять из них чтение.
   #[inline]
   pub fn new_reader<'lob: 'conn>(&'lob mut self) -> Result<BFileReader<'lob, 'conn>> {
-    self.open(LobPiece::First)
+    self.open(Piece::First)
   }
   /// Открывает данный файловый объект с доступом только на чтение.
   #[inline]
-  fn open<'lob>(&'lob mut self, piece: LobPiece) -> Result<BFileReader<'lob, 'conn>> {
+  fn open<'lob>(&'lob mut self, piece: Piece) -> Result<BFileReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
     Ok(BFileReader { lob: self, piece: piece })
   }
-  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+  fn close(&mut self, piece: Piece) -> DbResult<()> {
     // Если LOB был прочитан не полностью, то отменяем запросы на чтение и восстанавливаемся
-    if piece != LobPiece::Last {
+    if piece != Piece::Last {
       try!(self.impl_.break_());
       try!(self.impl_.reset());
     }
@@ -60,7 +61,7 @@ impl<'conn> LobPrivate<'conn> for BFile<'conn> {
 impl<'lob> io::Read for BFile<'lob> {
   #[inline]
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    match self.open(LobPiece::One) {
+    match self.open(Piece::One) {
       Ok(mut r) => r.read(buf),
       Err(e) => Err(io::Error::new(io::ErrorKind::Other, e)),
     }
@@ -71,7 +72,7 @@ impl<'lob> io::Read for BFile<'lob> {
 #[derive(Debug)]
 pub struct BFileReader<'lob, 'conn: 'lob> {
   lob: &'lob mut BFile<'conn>,
-  piece: LobPiece,
+  piece: Piece,
 }
 impl<'lob, 'conn: 'lob> BFileReader<'lob, 'conn> {
   /// Получает `BFILE`, читаемый данным читателем.

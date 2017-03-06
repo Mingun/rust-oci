@@ -3,7 +3,8 @@ use std::io;
 
 use {Connection, Result, DbResult};
 use types::Charset;
-use ffi::native::lob::{Lob, LobImpl, LobPiece, LobOpenMode, CharsetForm};
+use ffi::native::lob::{Lob, LobImpl, LobOpenMode, CharsetForm};
+use ffi::types::Piece;
 
 use super::{Bytes, Chars, LobPrivate};
 
@@ -103,7 +104,7 @@ impl<'conn> Clob<'conn> {
   #[inline]
   pub fn new_reader_with_charset<'lob>(&'lob mut self, charset: Charset) -> Result<ClobReader<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::ReadOnly));
-    Ok(ClobReader { lob: self, piece: LobPiece::First, charset: charset })
+    Ok(ClobReader { lob: self, piece: Piece::First, charset: charset })
   }
   /// Создает писателя в данный символьный объект. Преимущество использования писателя вместо прямой записи
   /// в объект в том, что функциональные и доменные индексы базы данных (если они есть) для данного большого
@@ -127,7 +128,7 @@ impl<'conn> Clob<'conn> {
   #[inline]
   pub fn new_writer_with_charset<'lob>(&'lob mut self, charset: Charset) -> Result<ClobWriter<'lob, 'conn>> {
     try!(self.impl_.open(LobOpenMode::WriteOnly));
-    Ok(ClobWriter { lob: self, piece: LobPiece::First, charset: charset })
+    Ok(ClobWriter { lob: self, piece: Piece::First, charset: charset })
   }
   /// Получает кодировку базы данных для данного большого символьного объекта.
   #[inline]
@@ -136,9 +137,9 @@ impl<'conn> Clob<'conn> {
   }
   /// Если CLOB прочитан или записан не полностью, то сообщает базе данных, что дальнейшее чтение/запись не требуются
   /// и закрывает CLOB.
-  fn close(&mut self, piece: LobPiece) -> DbResult<()> {
+  fn close(&mut self, piece: Piece) -> DbResult<()> {
     // Если LOB был прочитан/записан не полностью, то отменяем запросы на чтение/запись и восстанавливаемся
-    if piece != LobPiece::Last {
+    if piece != Piece::Last {
       try!(self.impl_.break_());
       try!(self.impl_.reset());
     }
@@ -157,12 +158,12 @@ impl<'conn> LobPrivate<'conn> for Clob<'conn> {
 }
 impl<'conn> io::Read for Clob<'conn> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    self.impl_.read(LobPiece::One, Charset::AL32UTF8, self.form, buf).0
+    self.impl_.read(Piece::One, Charset::AL32UTF8, self.form, buf).0
   }
 }
 impl<'conn> io::Write for Clob<'conn> {
   fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-    self.impl_.write(LobPiece::One, Charset::AL32UTF8, self.form, buf).0
+    self.impl_.write(Piece::One, Charset::AL32UTF8, self.form, buf).0
   }
   fn flush(&mut self) -> io::Result<()> {
     Ok(())
@@ -174,7 +175,7 @@ impl<'conn> io::Write for Clob<'conn> {
 #[derive(Debug)]
 pub struct ClobWriter<'lob, 'conn: 'lob> {
   lob: &'lob mut Clob<'conn>,
-  piece: LobPiece,
+  piece: Piece,
   charset: Charset,
 }
 impl<'lob, 'conn: 'lob> ClobWriter<'lob, 'conn> {
@@ -219,7 +220,7 @@ impl<'lob, 'conn: 'lob> Drop for ClobWriter<'lob, 'conn> {
 pub struct ClobReader<'lob, 'conn: 'lob> {
   lob: &'lob mut Clob<'conn>,
   /// Описательная часть порции данных, получаемых из базы данных (первая или нет).
-  piece: LobPiece,
+  piece: Piece,
   /// Кодировка, в которой следует интерпретировать получаемые из базы данных байты.
   charset: Charset,
 }

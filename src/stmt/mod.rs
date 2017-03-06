@@ -20,9 +20,8 @@ use ffi::attr::AttrHolder;
 use ffi::native::{OCIBind, OCIParam, OCIStmt, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIBindDynamic, OCIDefineByPos};// FFI функции
 use ffi::native::bind::{BindContext, in_bind_adapter};
-use ffi::native::lob::LobPiece;
 use ffi::types::Attr;
-use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode};
+use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode, Piece};
 
 use self::index::BindIndex;
 use self::storage::DefineInfo;
@@ -223,7 +222,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   /// [1]: #method.execute
   /// [2]: #method.query
   fn bind_dynamic<F>(&mut self, handle: *mut OCIBind, supplier: F) -> DbResult<()>
-    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, LobPiece) -> (bool, LobPiece, bool) + 'conn
+    where F: FnMut(&mut OCIBind, &mut Vec<u8>, u32, u32, Piece) -> (bool, Piece, bool) + 'conn
   {
     self.binds.push(BindContext::new(supplier));
     let error = self.error().native_mut();

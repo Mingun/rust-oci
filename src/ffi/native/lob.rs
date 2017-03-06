@@ -13,7 +13,7 @@ use types::Charset;
 
 use ffi::DescriptorType;// Типажи для безопасного моста к FFI
 
-use ffi::types;
+use ffi::types::{OCICallbackLobArrayRead, OCICallbackLobArrayWrite, Piece};
 use ffi::native::{OCIEnv, OCIError, OCISvcCtx};// FFI типы
 use ffi::native::misc::{break_, reset};// FFI функции
 
@@ -21,38 +21,6 @@ pub trait OCILobLocator : DescriptorType {}
 descriptor!(OCILobLocator, Lob);
 descriptor!(OCILobLocator, File);
 
-/// Смысловой номер куска, читаемого из/записываемого в LOB.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum LobPiece {
-  /// Читаемый/записываемый буфер является единственной частью.
-  One   = 0,
-  /// Читаемый/записываемый буфер является первой частью набора буферов для чтения/записи.
-  First = 1,
-  /// Читаемый/записываемый буфер является не первой, но и не последней частью набора буферов
-  /// для чтения/записи.
-  Next  = 2,
-  /// Читаемый/записываемый буфер является последней частью набора буферов для чтения/записи.
-  Last  = 3,
-}
-impl LobPiece {
-  /// Получает смысловой номер следующей порции данных после данной
-  #[inline]
-  pub fn next(self) -> Self {
-    match self {
-      LobPiece::One => LobPiece::One,
-      LobPiece::Last => LobPiece::Last,
-      _ => LobPiece::Next,
-    }
-  }
-  /// Получает смысловой номер последней порции данных после данной
-  #[inline]
-  pub fn last(self) -> Self {
-    match self {
-      LobPiece::One => LobPiece::One,
-      _ => LobPiece::Last,
-    }
-  }
-}
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CharsetForm {
@@ -214,7 +182,7 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
     };
     self.conn.error().check(res)
   }
-  pub fn read_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
+  pub fn read_impl(&mut self, offset: u64, piece: Piece, charset: Charset, form: CharsetForm, buf: &mut [u8], readed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobRead2(
         self.conn.context.native_mut(),
@@ -234,31 +202,31 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
 
     self.conn.error().check(res)
   }
-  pub fn read(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &mut [u8]) -> (io::Result<usize>, LobPiece) {
+  pub fn read(&mut self, piece: Piece, charset: Charset, form: CharsetForm, buf: &mut [u8]) -> (io::Result<usize>, Piece) {
     // Если в прошлый раз при чтении был достигнут конец потока, возвращаем 0
-    if piece == LobPiece::Last {
+    if piece == Piece::Last {
       return (Ok(0), piece);
     }
     // Количество того, сколько читать и сколько было реально прочитано.
     // В случае потокового чтения нужно передать 0, что означает -- прочитать все, что есть.
-    let mut readed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
+    let mut readed = if piece == Piece::One { buf.len() as u64 } else { 0 };
     match self.read_impl(0, piece, charset, form, buf, &mut readed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
-        (Ok(readed as usize), LobPiece::Last)
+        (Ok(readed as usize), Piece::Last)
       },
       // Не может быть прочитано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Err(NeedData) if piece != LobPiece::One => (Ok(readed as usize), LobPiece::Next),
+      Err(NeedData) if piece != Piece::One => (Ok(readed as usize), Piece::Next),
       //TODO: Не совсем верный код ошибки, но более подхожящего нет. Более верно можно сказать "Buffer too small"
       // Заменить, если будет реализован https://github.com/rust-lang/rust/issues/39365
       // Правда, в случае Oracle-а имеется баг в нем, что при чтении [N]CLOB-а предоставленный буфер может быть заполнен
       // только примерно наполовину. Пока неясно, как ее обойти
-      Err(NeedData) if readed == 0 => (Err(io::ErrorKind::UnexpectedEof.into()), LobPiece::Next),
+      Err(NeedData) if readed == 0 => (Err(io::ErrorKind::UnexpectedEof.into()), Piece::Next),
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }
-  pub fn write_impl(&mut self, offset: u64, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8], writed: &mut u64) -> DbResult<()> {
+  pub fn write_impl(&mut self, offset: u64, piece: Piece, charset: Charset, form: CharsetForm, buf: &[u8], writed: &mut u64) -> DbResult<()> {
     let res = unsafe {
       OCILobWrite2(
         self.conn.context.native_mut(),
@@ -280,26 +248,26 @@ impl<'conn, L: OCILobLocator> LobImpl<'conn, L> {
 
     self.conn.error().check(res)
   }
-  pub fn write(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8]) -> (io::Result<usize>, LobPiece) {
+  pub fn write(&mut self, piece: Piece, charset: Charset, form: CharsetForm, buf: &[u8]) -> (io::Result<usize>, Piece) {
     // Если в прошлый раз при записи был достигнут конец потока, возвращаем 0
-    if piece == LobPiece::Last {
+    if piece == Piece::Last {
       return (Ok(0), piece);
     }
-    let mut writed = if piece == LobPiece::One { buf.len() as u64 } else { 0 };
+    let mut writed = if piece == Piece::One { buf.len() as u64 } else { 0 };
     match self.write_impl(0, piece, charset, form, buf, &mut writed) {
       Ok(_) => {
         // Чтение закончено, теперь будем постоянно возвращать 0
-        (Ok(writed as usize), LobPiece::Last)
+        (Ok(writed as usize), Piece::Last)
       },
       // Не может быть записано больше, чем было запрошено, а то, что было запрошено,
       // не превышает usize, поэтому приведение безопасно в случае, если sizeof(usize) < sizeof(u64).
-      Err(NeedData) if piece != LobPiece::One => (Ok(writed as usize), LobPiece::Next),
-      Err(NeedData) if writed == 0 => (Err(io::ErrorKind::WriteZero.into()), LobPiece::Next),
+      Err(NeedData) if piece != Piece::One => (Ok(writed as usize), Piece::Next),
+      Err(NeedData) if writed == 0 => (Err(io::ErrorKind::WriteZero.into()), Piece::Next),
       Err(e) => (Err(io::Error::new(io::ErrorKind::Other, e)), piece)
     }
   }
   /// Дописывает в конец данного LOB-а данные из указанного буфера.
-  pub fn append(&mut self, piece: LobPiece, charset: Charset, form: CharsetForm, buf: &[u8]) -> DbResult<usize> {
+  pub fn append(&mut self, piece: Piece, charset: Charset, form: CharsetForm, buf: &[u8]) -> DbResult<usize> {
     // Количество того, сколько писать и сколько было реально записано
     let mut writed = buf.len() as u64;
     let res = unsafe {
@@ -561,7 +529,7 @@ extern "C" {
                          bufl_arr: u64,
                          piece: u8,
                          ctxp: *mut c_void,
-                         cbfp: Option<types::OCICallbackLobArrayRead>,
+                         cbfp: Option<OCICallbackLobArrayRead>,
                          csid: u16,
                          csfrm: u8) -> c_int;
   /// Writes LOB data for multiple locators in one round-trip.
@@ -578,7 +546,7 @@ extern "C" {
                           bufl_arr: *mut u64,
                           piece: u8,
                           ctxp: *mut c_void,
-                          cbfp: Option<types::OCICallbackLobArrayWrite>,
+                          cbfp: Option<OCICallbackLobArrayWrite>,
                           csid: u16,
                           csfrm: u8) -> c_int;
 
