@@ -10,6 +10,8 @@ use {Connection, Result};
 use error::Error;
 use types::Type;
 
+use ffi::types::OCIInd;
+
 pub use self::num::OCINumber;
 
 mod num;
@@ -99,7 +101,7 @@ pub struct BindInfo<'a> {
   /// Тип базы данных, представленный данной структурой.
   pub ty: Type,
   /// Признак того, что переменная связывания содержит `NULL`.
-  pub is_null: i16,
+  pub is_null: OCIInd,
   /// Маркер, привязывающей структуре время жизни.
   pub _phantom: PhantomData<&'a ()>,
 }
@@ -110,7 +112,7 @@ impl<'a> BindInfo<'a> {
       ptr: slice.as_ptr() as *const c_void,
       size: slice.len(),
       ty: ty,
-      is_null: 0,
+      is_null: OCIInd::NotNull,
       _phantom: PhantomData,
     }
   }
@@ -121,7 +123,7 @@ impl<'a> BindInfo<'a> {
       ptr: ptr::null(),
       size: 0,
       ty: ty,
-      is_null: -1,
+      is_null: OCIInd::Null,
       _phantom: PhantomData,
     }
   }

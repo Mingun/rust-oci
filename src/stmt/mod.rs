@@ -21,7 +21,7 @@ use ffi::native::{OCIBind, OCIParam, OCIStmt, OCIError};// FFI типы
 use ffi::native::{OCIParamGet, OCIStmtExecute, OCIStmtRelease, OCIStmtPrepare2, OCIStmtFetch2, OCIBindByPos, OCIBindByName, OCIBindDynamic, OCIDefineByPos};// FFI функции
 use ffi::native::bind::{BindContext, in_bind_adapter};
 use ffi::types::Attr;
-use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode, Piece};
+use ffi::types::{BindMode, DefineMode, CachingMode, ExecuteMode, FetchMode, Piece, OCIInd};
 
 use self::index::BindIndex;
 use self::storage::DefineInfo;
@@ -162,7 +162,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       // возможный общий предоставляемый размер данных. Даем по максимуму.
       (ptr::null_mut(), i32::MAX)
     } else {
-      (&info.is_null as *const i16 as *mut i16 as *mut c_void, info.size as i32)
+      (&info.is_null as *const _ as *mut OCIInd, info.size as i32)
     };
     let res = unsafe {
       OCIBindByPos(
@@ -173,7 +173,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         pos + 1,
         // Указатель на буфер с данными, его размер и тип
         info.ptr as *mut c_void, size, info.ty as u16,
-        is_null,// Массив индикаторов (null/не null)
+        is_null as *mut c_void,// Массив индикаторов (null/не null)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
@@ -190,7 +190,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
       // возможный общий предоставляемый размер данных. Даем по максимуму.
       (ptr::null_mut(), i32::MAX)
     } else {
-      (&info.is_null as *const i16 as *mut i16 as *mut c_void, info.size as i32)
+      (&info.is_null as *const _ as *mut OCIInd, info.size as i32)
     };
     let res = unsafe {
       OCIBindByName(
@@ -200,7 +200,7 @@ impl<'conn, 'key> Statement<'conn, 'key> {
         placeholder.as_ptr(), placeholder.len() as i32,
         // Указатель на буфер с данными, его размер и тип
         info.ptr as *mut c_void, size, info.ty as u16,
-        is_null,// Массив индикаторов (null/не null)
+        is_null as *mut c_void,// Массив индикаторов (null/не null)
         ptr::null_mut(),// Массив длин для каждого значения
         ptr::null_mut(),// Массив для column-level return codes
 
