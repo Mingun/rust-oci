@@ -445,15 +445,15 @@ impl<'conn, 'key> Statement<'conn, 'key> {
           T: ToDB
   {
     let index = index.into();
-    let info = BindInfo::null(T::ty());
+    let info = BindInfo::dynamic(T::ty());
 
     let handle = try!(self.bind_value(index, info, BindMode::DataAtExec));
-    try!(self.bind_dynamic(handle, move |_, v, iter, index, p| {
+    try!(self.bind_dynamic(handle, move |_, v, iter, index, _| {
       let is_null = match func(iter, index).to_db() {
         Some(slice) => { v.extend_from_slice(slice); false },
         None => true,
       };
-      (is_null, p.last(), false)
+      (is_null, Piece::One, false)
     }));
     Ok(())
   }

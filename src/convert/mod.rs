@@ -127,6 +127,22 @@ impl<'a> BindInfo<'a> {
       _phantom: PhantomData,
     }
   }
+  /// Возвращает структуру связывания, готовую для передачи в функции [`bind_by_pos`][1] и [`bind_by_name`][2]
+  /// при использовании динамического связывания (т.е. предоставления данных связанных переменных во время
+  /// исполнения запроса; данные могут предоставляться или функцией, или итератором).
+  ///
+  /// [1]: ../stmt/struct.Statement.html#method.bind_by_pos
+  /// [2]: ../stmt/struct.Statement.html#method.bind_by_name
+  #[inline]
+  pub fn dynamic(ty: Type) -> Self {
+    BindInfo {
+      ptr: ptr::null(),
+      size: 0,
+      ty: ty,
+      is_null: OCIInd::NotNull,
+      _phantom: PhantomData,
+    }
+  }
 }
 
 impl<'a, T> From<&'a T> for BindInfo<'a>
