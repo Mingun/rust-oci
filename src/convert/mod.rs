@@ -107,7 +107,7 @@ pub struct BindInfo<'a> {
 }
 impl<'a> BindInfo<'a> {
   #[inline]
-  fn from_slice(slice: &[u8], ty: Type) -> Self {
+  fn from_slice(slice: &'a [u8], ty: Type) -> Self {
     BindInfo {
       ptr: slice.as_ptr() as *const c_void,
       size: slice.len(),
