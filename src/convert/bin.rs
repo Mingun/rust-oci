@@ -1,7 +1,7 @@
 //! Реализация конвертации в типы базы данных и обратно бинарных данных
 
 use {Connection, Result};
-use convert::{FromDB, ToDB};
+use convert::{FromDB, AsDB};
 use error::Error;
 use types::Type;
 
@@ -19,19 +19,19 @@ impl<'conn> FromDB<'conn> for Vec<u8> {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // В базу
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-impl ToDB for [u8] {
+impl AsDB for [u8] {
   #[inline]
   fn ty() -> Type { Type::LBI }
   #[inline]
-  fn to_db(&self) -> Option<&[u8]> {
+  fn as_db(&self) -> Option<&[u8]> {
     Some(self)
   }
 }
-impl ToDB for Vec<u8> {
+impl AsDB for Vec<u8> {
   #[inline]
   fn ty() -> Type { Type::LBI }
   #[inline]
-  fn to_db(&self) -> Option<&[u8]> {
+  fn as_db(&self) -> Option<&[u8]> {
     Some(self)
   }
 }
@@ -64,11 +64,11 @@ macro_rules! array {
       }
     }
 
-    impl ToDB for [u8; $size] {
+    impl AsDB for [u8; $size] {
       #[inline]
       fn ty() -> Type { Type::LBI }
       #[inline]
-      fn to_db(&self) -> Option<&[u8]> {
+      fn as_db(&self) -> Option<&[u8]> {
         Some(self)
       }
     }

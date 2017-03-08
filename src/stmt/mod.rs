@@ -10,7 +10,7 @@ use std::os::raw::c_void;
 use std::ptr;
 
 use {Connection, DbResult, Result};
-use convert::{BindInfo, ToDB};
+use convert::{BindInfo, AsDB};
 use types::{Type, Syntax, StatementType};
 
 use ffi::{Descriptor, Handle};// Основные типобезопасные примитивы
@@ -442,14 +442,14 @@ impl<'conn, 'key> Statement<'conn, 'key> {
   pub fn bind_fn<'i, I, F, T>(&mut self, index: I, mut func: F) -> Result<()>
     where I: Into<BindIndex<'i>>,
           F: FnMut(u32, u32) -> T + 'conn,
-          T: ToDB
+          T: AsDB
   {
     let index = index.into();
     let info = BindInfo::dynamic(T::ty());
 
     let handle = try!(self.bind_value(index, info, BindMode::DataAtExec));
     try!(self.bind_dynamic(handle, move |_, v, iter, index, _| {
-      let is_null = match func(iter, index).to_db() {
+      let is_null = match func(iter, index).as_db() {
         Some(slice) => { v.extend_from_slice(slice); false },
         None => true,
       };

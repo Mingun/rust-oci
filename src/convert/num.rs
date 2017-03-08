@@ -7,7 +7,7 @@ use num_traits::{Signed, Unsigned};
 use num_integer::Integer;
 
 use {Connection, DbResult, Result};
-use convert::{FromDB, ToDB};
+use convert::{FromDB, AsDB};
 use error::Error;
 use types::Type;
 
@@ -119,16 +119,18 @@ num_from!(usize, NumberFlag::Unsigned, UIN);
 
 macro_rules! num_into {
   ($ty:ty, $id:ident) => (
-    impl ToDB for $ty {
+    impl AsDB for $ty {
       #[inline]
       fn ty() -> Type { Type::$id }
       #[inline]
-      fn to_db(&self) -> Option<&[u8]> {
-        Some(unsafe { slice::from_raw_parts(self as *const $ty as *const _, size_of::<$ty>()) })
+      fn as_db(&self) -> Option<&[u8]> {
+        Some(unsafe { slice::from_raw_parts(self as *const Self as *const _, size_of::<Self>()) })
       }
     }
   )
 }
+
+num_into!( bool, BOL);
 
 num_into!(   i8, INT);
 num_into!(  i16, INT);
