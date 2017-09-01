@@ -51,10 +51,10 @@ macro_rules! array {
           Type::LBI => {// Тип колонки LONG RAW
             let mut res = [0u8; $size];
             if $size < raw.len() {
-              /// Записываем столько данных, сколько можем вместить
+              // Записываем столько данных, сколько можем вместить
               res.copy_from_slice(&raw[0..$size])
             } else {
-              /// Записываем столько данных, сколько получили
+              // Записываем столько данных, сколько получили
               res[0..raw.len()].copy_from_slice(raw)
             }
             Ok(res)
